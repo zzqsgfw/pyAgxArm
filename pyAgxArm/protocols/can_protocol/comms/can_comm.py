@@ -18,7 +18,7 @@ def create_can_comm_config(
     bitrate: int = 1_000_000,
     enable_check_can: bool = True,
     auto_connect: bool = True,
-    timeout: float = 0.001,
+    timeout: float = 1.0,
     receive_own_messages: bool = False,
     local_loopback: bool = False,
 ):
@@ -67,7 +67,7 @@ class CanCommImpl(CanCommBase):
         self._bitrate = self._config.get("bitrate", 1000000)
         self._enable_check_can = self._config.get("enable_check_can", False)
         self._auto_connect = self._config.get("auto_connect", False)
-        self._timeout = self._config.get("timeout", 0.001)
+        self._timeout = self._config.get("timeout", 1.0)
         self._receive_own_messages = self._config.get("receive_own_messages", False)
         self._local_loopback = self._config.get("local_loopback", False)
         self._is_connected = False

@@ -175,7 +175,7 @@ create_agx_arm_config(
 | `bitrate` | `int` | CAN baud rate, default `1000000` (1 Mbps) |
 | `enable_check_can` | `bool` | Whether to check the CAN module when creating a Comm instance, default `True`. This pre-check is currently only effective for Linux `socketcan`; for other backends (for example, Windows `agx_cando` and macOS `slcan`) the actual availability check happens when the CAN bus is opened. |
 | `auto_connect` | `bool` | Whether to automatically create a CAN Bus instance, default `True` |
-| `timeout` | `float` | CAN Bus read/write timeout (seconds), default `0.001` |
+| `timeout` | `float` | CAN Bus read/write timeout (seconds), default `1.0` |
 | `receive_own_messages` | `bool` | Whether the local CAN backend should receive frames sent by the same process/device. Default `False`. This is useful for debugging, loopback tests, or virtual/single-node verification, but is usually not recommended for normal arm control. Backend support depends on the selected `interface`. The `slcan` backend on macOS generally does not support this; **do not pass** it when using `interface="slcan"`. |
 | `local_loopback` | `bool` | Whether to enable CAN **local loopback**. Default is `False` (loopback disabled), so your local terminal/process will **not** receive the CAN frames it sends itself. You may enable it for debugging, but it is **not recommended** for normal SDK usage because it may consume bus receive resources and impact reading performance. The `slcan` backend on macOS generally does not support this; **do not pass** it when using `interface="slcan"`. |
 
@@ -208,7 +208,7 @@ Example return structure:
             "bitrate": 1000000,
             "enable_check_can": true,
             "auto_connect": true,
-            "timeout": 0.001,
+            "timeout": 1.0,
             "receive_own_messages": false,
             "local_loopback": false
         }
@@ -2872,7 +2872,7 @@ create_agx_arm_config(
 | `bitrate` | `int` | CAN 波特率，默认 `1000000`（1 Mbps） |
 | `enable_check_can` | `bool` | 是否在创建 Comm 实例时检查 CAN 模块，默认 `True`。当前该预检查主要只对 Linux `socketcan` 生效；其他后端（如 Windows `agx_cando`、macOS `slcan`）通常会在实际打开 CAN bus 时完成可用性检查。 |
 | `auto_connect` | `bool` | 是否自动创建 CAN Bus 实例，默认 `True` |
-| `timeout` | `float` | CAN Bus 读写超时时间（秒），默认 `0.001` |
+| `timeout` | `float` | CAN Bus 读写超时时间（秒），默认 `1.0` |
 | `receive_own_messages` | `bool` | 是否让本地 CAN 后端接收由同一进程/设备发送出去的报文。默认 `False`。适合调试、回环测试或单节点联调，正常机械臂控制一般不建议开启。具体是否生效取决于所选 `interface`。macOS 下的 `slcan` 后端通常**不支持**该项；使用 `interface="slcan"` 时**不要**传入。 |
 | `local_loopback` | `bool` | 是否开启 CAN **本地回环**。默认 `False`（关闭回环），本地终端/进程将**无法**接收到自己发送的 CAN 报文。调试时可选择开启，但**不建议**在正常使用 SDK 时开启，因为可能会占用读取 bus 的资源并影响读取性能。macOS 下的 `slcan` 后端通常**不支持**该项；使用 `interface="slcan"` 时**不要**传入。 |
 
@@ -2905,7 +2905,7 @@ create_agx_arm_config(
             "bitrate": 1000000,
             "enable_check_can": true,
             "auto_connect": true,
-            "timeout": 0.001,
+            "timeout": 1.0,
             "receive_own_messages": false,
             "local_loopback": false
         }

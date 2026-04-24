@@ -767,7 +767,7 @@ robot = AgxArmFactory.create_arm(cfg)
 robot.connect()
 
 if robot.get_joint_enable_status(1):
-    print("关节 1 电机已使能")
+    print("Joint-1 motor is enabled")
 ```
 
 ---
@@ -1074,11 +1074,11 @@ robot.connect()
 
 robot.set_tcp_offset([0.0, 0.0, 0.10, 0.0, 0.0, 0.0])
 
-# 直接指定法兰位姿
+# Specify a flange pose directly
 tcp_pose = robot.get_flange2tcp_pose([0.30, 0.0, 0.30, 0.0, 1.5707, 0.0])
 print("tcp_pose =", tcp_pose)
 
-# 从当前位姿获取，结果与 get_tcp_pose() 得到的 pose 相同
+# Use current flange pose; result should match get_tcp_pose()
 flange_pose = robot.get_flange_pose()
 if flange_pose is not None:
     tcp_pose = robot.get_flange2tcp_pose(flange_pose)
@@ -1120,7 +1120,7 @@ target_tcp_pose = [0.30, 0.0, 0.30, 0.0, 1.5707, 0.0]
 target_flange_pose = robot.get_tcp2flange_pose(target_tcp_pose)
 print("target_flange_pose =", target_flange_pose)
 
-# robot.move_p(target_flange_pose)  # 注意：会触发运动
+# robot.move_p(target_flange_pose)  # Note: this will trigger motion
 ```
 
 ---
@@ -1627,16 +1627,16 @@ while not robot.enable():
 robot.set_speed_percent(100)
 robot.move_j([0, 0.4, -0.4, 0, -0.4, 0])
 
-# 等待运动结束（带 5s 超时）
+# Wait until motion completes (5s timeout)
 time.sleep(0.5)
 start_t = time.monotonic()
 while True:
     status = robot.get_arm_status()
     if status is not None and status.msg.motion_status == 0:
-        print("已到达目标位置")
+        print("Target position reached")
         break
     if time.monotonic() - start_t > 5.0:
-        print("等待运动结束超时（5s）")
+        print("Timed out waiting for motion completion (5s)")
         break
     time.sleep(0.1)
 ```
@@ -1719,16 +1719,16 @@ while not robot.enable():
 robot.set_speed_percent(100)
 robot.move_p([0.1, 0.0, 0.3, 0.0, 1.570796326794896619, 0.0])
 
-# 等待运动结束（带 5s 超时）
+# Wait until motion completes (5s timeout)
 time.sleep(0.5)
 start_t = time.monotonic()
 while True:
     status = robot.get_arm_status()
     if status is not None and status.msg.motion_status == 0:
-        print("已到达目标位置")
+        print("Target position reached")
         break
     if time.monotonic() - start_t > 5.0:
-        print("等待运动结束超时（5s）")
+        print("Timed out waiting for motion completion (5s)")
         break
     time.sleep(0.1)
 ```
@@ -1769,16 +1769,16 @@ while not robot.enable():
 robot.set_speed_percent(100)
 robot.move_l([0.1, 0.0, 0.3, 0.0, 1.570796326794896619, 0.0])
 
-# 等待运动结束（带 5s 超时）
+# Wait until motion completes (5s timeout)
 time.sleep(0.5)
 start_t = time.monotonic()
 while True:
     status = robot.get_arm_status()
     if status is not None and status.msg.motion_status == 0:
-        print("已到达目标位置")
+        print("Target position reached")
         break
     if time.monotonic() - start_t > 5.0:
-        print("等待运动结束超时（5s）")
+        print("Timed out waiting for motion completion (5s)")
         break
     time.sleep(0.1)
 ```
@@ -1822,16 +1822,16 @@ mp = [0.2, 0.05, 0.35, 0.0, 1.5708, 0.0]
 ep = [0.2, 0.0, 0.4, 0.0, 1.5708, 0.0]
 robot.move_c(sp, mp, ep)
 
-# 等待运动结束（带 5s 超时）
+# Wait until motion completes (5s timeout)
 time.sleep(0.5)
 start_t = time.monotonic()
 while True:
     status = robot.get_arm_status()
     if status is not None and status.msg.motion_status == 0:
-        print("已到达目标位置")
+        print("Target position reached")
         break
     if time.monotonic() - start_t > 5.0:
-        print("等待运动结束超时（5s）")
+        print("Timed out waiting for motion completion (5s)")
         break
     time.sleep(0.1)
 ```
@@ -2242,7 +2242,7 @@ robot.connect()
 joint_index = 1
 robot.disable(joint_index)
 time.sleep(0.2)
-input("请手动将关节移动到零位位置后按回车继续...")
+input("Please move the joint to the zero position manually, then press Enter to continue...")
 
 if robot.calibrate_joint(joint_index):
     print("calibrate_joint success")
@@ -2333,7 +2333,7 @@ cfg = create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFA
 robot = AgxArmFactory.create_arm(cfg)
 robot.connect()
 
-# 同时设置角度和速度限制
+# Set both angle and speed limits
 success = robot.set_joint_angle_vel_limits(
     joint_index=1,
     min_angle_limit=-2.618,
@@ -2342,7 +2342,7 @@ success = robot.set_joint_angle_vel_limits(
 )
 print("set_joint_angle_vel_limits success =", success)
 
-# 仅设置最大速度限制（不改角度限制）
+# Set only max speed limit (keep angle limits unchanged)
 success = robot.set_joint_angle_vel_limits(joint_index=1, max_joint_spd=3.0)
 print("set_joint_angle_vel_limits(max_joint_spd) success =", success)
 ```

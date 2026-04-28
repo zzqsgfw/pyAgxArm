@@ -170,6 +170,37 @@ def test_nero_get_firmware_with_realistic_hex():
         device.stop()
 
 
+def test_nero_proprietary_apis_l2():
+    channel = new_virtual_channel("ci_nero_private")
+    device = NeroCanSlave(channel=channel)
+    device.start()
+    try:
+        arm = _make_nero_arm(NeroFW.DEFAULT, channel)
+        arm.connect()
+        arm.set_speed_percent(100)
+        assert wait_until(lambda: arm.get_fps() > 0, timeout=1.0)
+
+        # get_* 系列
+        assert arm.get_joint_angle_vel_limits(1, timeout=1.0, min_interval=0.0) is not None
+        assert arm.get_joint_acc_limits(1, timeout=1.0, min_interval=0.0) is not None
+        assert arm.get_flange_vel_acc_limits(timeout=1.0, min_interval=0.0) is not None
+        assert arm.get_crash_protection_rating(timeout=1.0, min_interval=0.0) is not None
+
+        # set_* 系列
+        arm.calibrate_joint(1)
+        arm.clear_joint_error(1)
+        assert arm.set_joint_angle_vel_limits(1, timeout=1.0)
+        assert arm.set_joint_acc_limits(1, timeout=1.0)
+        assert arm.set_flange_vel_acc_limits(timeout=1.0)
+        assert arm.set_crash_protection_rating(1, 0, timeout=1.0)
+
+        ids = {f.arbitration_id for f in device.device_frames}
+        assert {0x473, 0x47C, 0x478, 0x47B, 0x476}.issubset(ids)
+        arm.disconnect()
+    finally:
+        device.stop()
+
+
 def test_nero_driver_virtual_can_cpv_joint7_and_round_trip():
     channel = new_virtual_channel("ci_nero_cpv")
     device = NeroCanSlave(channel=channel)

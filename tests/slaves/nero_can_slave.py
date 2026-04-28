@@ -222,6 +222,94 @@ class NeroCanSlave:
             )
         ]
 
+    def _set_instruction_replies(self, aid: int, data: bytes) -> List[can.Message]:
+        d = data.ljust(8, b"\x00")
+        out: List[can.Message] = []
+        if aid == 0x472:
+            if d[1] == 0x01:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x473,
+                        data=pl.pack_feedback_473_motor_angle_limit_max_spd(),
+                    )
+                )
+            elif d[1] == 0x02:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x47C,
+                        data=pl.pack_feedback_47c_motor_max_acc_limit(),
+                    )
+                )
+        if aid == 0x477:
+            if d[0] == 0x01:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x478,
+                        data=pl.pack_end_vel_acc_param_feedback(),
+                    )
+                )
+            if d[0] == 0x02:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x47B,
+                        data=pl.pack_feedback_47b_crash_protection(),
+                    )
+                )
+            if d[3] == 0xAE or d[2] in (0x01, 0x02) or d[1] in (0x01, 0x02):
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x476,
+                        data=pl.pack_set_instruction_response(0x77, 0),
+                    )
+                )
+        elif aid == 0x475:
+            if d[1] == 0xAE:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x476,
+                        data=pl.pack_set_instruction_response(0x75, 1),
+                    )
+                )
+            elif d[2] == 0xAE or d[5] == 0xAE:
+                out.append(
+                    can.Message(
+                        is_extended_id=False,
+                        arbitration_id=0x476,
+                        data=pl.pack_set_instruction_response(0x75, 0),
+                    )
+                )
+        elif aid == 0x479:
+            out.append(
+                can.Message(
+                    is_extended_id=False,
+                    arbitration_id=0x476,
+                    data=pl.pack_set_instruction_response(0x79, 0),
+                )
+            )
+        elif aid == 0x474:
+            out.append(
+                can.Message(
+                    is_extended_id=False,
+                    arbitration_id=0x476,
+                    data=pl.pack_set_instruction_response(0x74, 0),
+                )
+            )
+        elif aid == 0x47A:
+            out.append(
+                can.Message(
+                    is_extended_id=False,
+                    arbitration_id=0x476,
+                    data=pl.pack_set_instruction_response(0x7A, 0),
+                )
+            )
+        return out
+
     def _firmware_replies(self, aid: int) -> List[can.Message]:
         if aid != 0x4AF:
             return []
@@ -253,6 +341,8 @@ class NeroCanSlave:
             if need_proactive:
                 for m in self._standard_feedback_burst():
                     self._send_and_record(m)
+            for m in self._set_instruction_replies(frame.arbitration_id, payload):
+                self._send_and_record(m)
             for m in self._cpv_replies(frame.arbitration_id, payload):
                 self._send_and_record(m)
             for m in self._firmware_replies(frame.arbitration_id):

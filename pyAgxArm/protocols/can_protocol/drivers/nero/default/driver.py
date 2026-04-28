@@ -1,3 +1,4 @@
+import copy
 from typing import Optional, List, Callable
 from typing_extensions import Literal
 
@@ -19,11 +20,20 @@ from ....msgs.nero.default import (
     ArmMsgFeedbackStatusEnum,
     ArmMsgFeedbackLowSpd,
     ArmMsgFeedbackHighSpd,
+    ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd,
+    ArmMsgFeedbackCurrentMotorMaxAccLimit,
+    ArmMsgFeedbackCurrentEndVelAccParam,
     ArmMsgMotorEnableDisableConfig,
     ArmMsgMotionCtrl,
     ArmMsgLeaderFollowerModeConfig,
     ArmMsgFeedbackLeaderJointStates,
     ArmMsgReqFirmware,
+    ArmMsgSearchMotorMaxAngleSpdAccLimit,
+    ArmMsgMotorAngleLimitMaxSpdSet,
+    ArmMsgJointConfig,
+    ArmMsgParamEnquiryAndConfig,
+    ArmMsgEndVelAccParamConfig,
+    ArmMsgCrashProtectionRatingConfig,
 )
 
 
@@ -68,6 +78,12 @@ class Driver(ArmDriverAbstract):
     # driver.
     _MSG_ModeCtrl = ArmMsgModeCtrl
     _MSG_MotorEnableDisableConfig = ArmMsgMotorEnableDisableConfig
+    _MSG_SearchMotorMaxAngleSpdAccLimit = ArmMsgSearchMotorMaxAngleSpdAccLimit
+    _MSG_ParamEnquiryAndConfig = ArmMsgParamEnquiryAndConfig
+    _MSG_JointConfig = ArmMsgJointConfig
+    _MSG_MotorAngleLimitMaxSpdSet = ArmMsgMotorAngleLimitMaxSpdSet
+    _MSG_EndVelAccParamConfig = ArmMsgEndVelAccParamConfig
+    _MSG_CrashProtectionRatingConfig = ArmMsgCrashProtectionRatingConfig
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -145,6 +161,29 @@ class Driver(ArmDriverAbstract):
         if limits is not None:
             return limits[0], limits[1]
         return -12.5, 12.5
+
+    def _all_joints_bool(self, fn: Callable[[int], bool]) -> bool:
+        """Apply a bool-returning function to all joints and AND results."""
+        return all(fn(i) for i in self._JOINT_INDEX_LIST[:-1])
+
+    def _check_set_by_readback(
+        self,
+        *,
+        request: Callable[[], None],
+        check: Callable[[], bool],
+        timeout: float = 1.0,
+        stamp_key: str,
+    ) -> bool:
+        return bool(
+            self._ctx._request_and_get(
+                request=request,
+                is_ready=check,
+                get_value=lambda: True,
+                timeout=timeout,
+                min_interval=0.0,
+                stamp_attr=stamp_key,
+            )
+        )
 
     # -------------------------- Get --------------------------
 
@@ -1231,6 +1270,686 @@ class Driver(ArmDriverAbstract):
             ):
                 return self._leader_joint_angles
         return None
+
+    # -------------------------- Other --------------------------
+
+    def get_joint_angle_vel_limits(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+        timeout: float = 1.0,
+        min_interval: float = 1.0,
+    ):
+        """Get the joint angle and velocity limits.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7]
+        - 1~7: get the message of the specified joint.
+
+        `timeout`: float, optional
+        - Timeout in seconds (see `Driver` docstring: Common conventions -> `timeout`).
+        - Default is 1.0.
+
+        `min_interval`: float, optional
+        - Minimum interval in seconds between two consecutive requests.
+        - Default is 1.0.
+
+        Returns
+        -------
+        MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd] | None
+            The specified joint's limits, or None if not available.
+
+        Message
+        -------
+        `min_angle_limit`: Joint minimum angle limit, unit: rad
+
+        `max_angle_limit`: Joint maximum angle limit, unit: rad
+
+        `min_joint_spd`: Joint minimum velocity, unit: rad/s
+
+        `max_joint_spd`: Joint maximum velocity, unit: rad/s
+
+        Examples
+        --------
+        >>> limit = robot.get_joint_angle_vel_limits(1)
+        >>> if limit is not None:
+        >>>     print(limit.msg.min_angle_limit, limit.msg.max_angle_limit)
+        >>>     print(limit.msg.min_joint_spd, limit.msg.max_joint_spd)
+        >>> # Non-blocking: `robot.get_joint_angle_vel_limits(1, timeout=0.0)`
+        """
+        self._ctx._validate_timeout(timeout)
+        if joint_index not in self._JOINT_INDEX_LIST[:-1]:
+            raise ValueError(
+                f"Joint index should be {self._JOINT_INDEX_LIST[:-1]}"
+            )
+
+        def request() -> None:
+            self._send_msg(
+                self._MSG_SearchMotorMaxAngleSpdAccLimit(
+                    joint_index=joint_index, search_content=1
+                )
+            )
+
+        def is_ready() -> bool:
+            return (
+                getattr(self._parser, "motor_angle_limit_max_spd", None) is not None
+                and self._parser.motor_angle_limit_max_spd.msg.joints[
+                    joint_index - 1
+                ].min_angle_limit is not None
+            )
+
+        def get_value() -> MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd]:
+            self._parser.motor_angle_limit_max_spd.hz = self._ctx.fps.get_fps(
+                self._parser.motor_angle_limit_max_spd.msg_type
+            )
+            temp = copy.deepcopy(
+                self._parser.motor_angle_limit_max_spd.msg.joints[joint_index - 1]
+            )
+            temp = MessageAbstract(msg=temp, msg_type=temp.type_)
+            temp.hz = self._parser.motor_angle_limit_max_spd.hz
+            temp.timestamp = self._parser.motor_angle_limit_max_spd.timestamp
+            return temp
+
+        def clear() -> None:
+            self._parser.motor_angle_limit_max_spd.msg.joints[joint_index - 1].clear()
+
+        return self._ctx._request_and_get(
+            request=request,
+            is_ready=is_ready,
+            get_value=get_value,
+            clear=clear,
+            timeout=timeout,
+            min_interval=min_interval,
+            stamp_attr=f"joint_angle_vel:{joint_index}",
+        )
+
+    def get_joint_acc_limits(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+        timeout: float = 1.0,
+        min_interval: float = 1.0,
+    ):
+        """Get the joint acceleration limits.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7]
+        - 1~7: get the message of the specified joint.
+
+        `timeout`: float, optional
+        - Timeout in seconds (see `Driver` docstring: Common conventions -> `timeout`).
+        - Default is 1.0.
+
+        `min_interval`: float, optional
+        - Minimum interval in seconds between two consecutive requests.
+        - Default is 1.0.
+
+        Returns
+        -------
+        MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit] | None
+            The specified joint's limits, or None if not available.
+
+        Message
+        -------
+        `max_joint_acc`: Joint maximum acceleration, unit: rad/s^2
+
+        Examples
+        --------
+        >>> limit = robot.get_joint_acc_limits(1)
+        >>> if limit is not None:
+        >>>     print(limit.msg.max_joint_acc)
+        >>> # Non-blocking: `robot.get_joint_acc_limits(1, timeout=0.0)`
+        """
+        self._ctx._validate_timeout(timeout)
+        if joint_index not in self._JOINT_INDEX_LIST[:-1]:
+            raise ValueError(
+                f"Joint index should be {self._JOINT_INDEX_LIST[:-1]}"
+            )
+
+        def request() -> None:
+            self._send_msg(
+                self._MSG_SearchMotorMaxAngleSpdAccLimit(
+                    joint_index=joint_index, search_content=2
+                )
+            )
+
+        def is_ready() -> bool:
+            return (
+                getattr(self._parser, "motor_max_acc_limit", None) is not None
+                and self._parser.motor_max_acc_limit.msg.joints[
+                    joint_index - 1
+                ].max_joint_acc is not None
+            )
+
+        def get_value() -> MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit]:
+            self._parser.motor_max_acc_limit.hz = self._ctx.fps.get_fps(
+                self._parser.motor_max_acc_limit.msg_type
+            )
+            temp = copy.deepcopy(
+                self._parser.motor_max_acc_limit.msg.joints[joint_index - 1]
+            )
+            temp = MessageAbstract(msg=temp, msg_type=temp.type_)
+            temp.hz = self._parser.motor_max_acc_limit.hz
+            temp.timestamp = self._parser.motor_max_acc_limit.timestamp
+            return temp
+
+        def clear() -> None:
+            self._parser.motor_max_acc_limit.msg.joints[joint_index - 1].clear()
+
+        return self._ctx._request_and_get(
+            request=request,
+            is_ready=is_ready,
+            get_value=get_value,
+            clear=clear,
+            timeout=timeout,
+            min_interval=min_interval,
+            stamp_attr=f"joint_acc:{joint_index}",
+        )
+
+    def get_flange_vel_acc_limits(
+        self,
+        timeout: float = 1.0,
+        min_interval: float = 1.0,
+    ):
+        """Get the flange velocity and acceleration limits.
+
+        Parameters
+        ----------
+        `timeout`: float, optional
+        - Timeout in seconds (see `Driver` docstring: Common conventions -> `timeout`).
+        - Default is 1.0.
+
+        `min_interval`: float, optional
+        - Minimum interval in seconds between two consecutive requests.
+        - Default is 1.0.
+
+        Returns
+        -------
+        MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam] | None
+            The end effector velocity and acceleration limits.
+            If the end effector velocity and acceleration limits is not available,
+            return None.
+
+        Message
+        -------
+        `end_max_linear_vel`: End effector maximum linear velocity, unit: m/s
+
+        `end_max_angular_vel`: End effector maximum angular velocity, unit: rad/s
+
+        `end_max_linear_acc`: End effector maximum linear acceleration, unit: m/s^2
+
+        `end_max_angular_acc`: End effector maximum angular acceleration, unit: rad/s^2
+
+        Examples
+        --------
+        >>> limit = robot.get_flange_vel_acc_limits()
+        >>> if limit is not None:
+        >>>     print(limit.msg.end_max_linear_vel, limit.msg.end_max_angular_vel)
+        >>>     print(limit.msg.end_max_linear_acc, limit.msg.end_max_angular_acc)
+        >>> # Non-blocking: `robot.get_flange_vel_acc_limits(timeout=0.0)`
+        """
+        def request() -> None:
+            self._send_msg(self._MSG_ParamEnquiryAndConfig(param_enquiry=1))
+
+        def is_ready() -> bool:
+            return (
+                getattr(self._parser, "end_vel_acc_param", None) is not None
+                and self._parser.end_vel_acc_param.msg.end_max_linear_vel is not None
+            )
+
+        def get_value() -> MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam]:
+            self._parser.end_vel_acc_param.hz = self._ctx.fps.get_fps(
+                self._parser.end_vel_acc_param.msg_type
+            )
+            return copy.deepcopy(self._parser.end_vel_acc_param)
+
+        def clear() -> None:
+            self._parser.end_vel_acc_param.msg.clear()
+
+        return self._ctx._request_and_get(
+            request=request,
+            is_ready=is_ready,
+            get_value=get_value,
+            clear=clear,
+            timeout=timeout,
+            min_interval=min_interval,
+            stamp_attr="flange_vel_acc",
+        )
+
+    def get_crash_protection_rating(
+        self, timeout: float = 1.0, min_interval: float = 1.0
+    ):
+        """Get the crash protection rating.
+
+        Parameters
+        ----------
+        `timeout`: float, optional
+        - Timeout in seconds (see `Driver` docstring: Common conventions -> `timeout`).
+        - Default is 1.0.
+
+        `min_interval`: float, optional
+        - Minimum interval in seconds between two consecutive requests.
+        - Default is 1.0.
+
+        Returns
+        -------
+        MessageAbstract[list[int]] | None
+            The crash protection rating.
+            If the crash protection rating is not available, return None.
+
+        Message
+        -------
+        `list[int]`: Collision protection level for each joint.
+        - 0: No collision detection
+        - 1-8: Collision detection thresholds increase (higher values represent more
+            sensitive thresholds)
+
+        Examples
+        --------
+        >>> rating = robot.get_crash_protection_rating()
+        >>> if rating is not None:
+        >>>     print(rating.msg)
+        >>>     print(rating.hz, rating.timestamp)
+        """
+        def request() -> None:
+            self._send_msg(self._MSG_ParamEnquiryAndConfig(param_enquiry=2))
+
+        def is_ready() -> bool:
+            return (
+                getattr(self._parser, "crash_protection_rating", None) is not None
+                and self._parser.crash_protection_rating.msg.joint_1 is not None
+            )
+
+        def get_value() -> MessageAbstract[List[int]]:
+            self._parser.crash_protection_rating.hz = self._ctx.fps.get_fps(
+                self._parser.crash_protection_rating.msg_type
+            )
+            temp: MessageAbstract[List[int]] = copy.deepcopy(
+                self._parser.crash_protection_rating
+            )
+            temp.msg = [
+                getattr(temp.msg, f"joint_{i}")
+                for i in range(1, self._JOINT_NUMS + 1)
+            ]
+            return temp
+
+        def clear() -> None:
+            self._parser.crash_protection_rating.msg.clear()
+
+        return self._ctx._request_and_get(
+            request=request,
+            is_ready=is_ready,
+            get_value=get_value,
+            clear=clear,
+            timeout=timeout,
+            min_interval=min_interval,
+            stamp_attr="crash_protection_rating",
+        )
+
+    def calibrate_joint(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    ):
+        """Calibrate a joint by setting current position as zero.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7, 255]
+        - 1~7: calibrate the specified joint without offset.
+        - 255: calibrate all joints with offset (controller-side behavior).
+        """
+        if joint_index not in self._JOINT_INDEX_LIST:
+            raise ValueError(f"Joint index should be {self._JOINT_INDEX_LIST}")
+
+        self._send_msg(
+            self._MSG_JointConfig(
+                joint_index=joint_index,
+                set_motor_current_pos_as_zero=0xAE,
+            )
+        )
+
+    def clear_joint_error(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    ):
+        """Clear joint error code for one joint or all joints.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7, 255]
+        - 1~7: clear error code on the specified joint.
+        - 255: clear error code on all joints.
+        """
+        if joint_index not in self._JOINT_INDEX_LIST:
+            raise ValueError(f"Joint index should be {self._JOINT_INDEX_LIST}")
+
+        self._send_msg(
+            self._MSG_JointConfig(
+                joint_index=joint_index,
+                clear_joint_err=0xAE,
+            )
+        )
+
+    def set_joint_angle_vel_limits(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+        min_angle_limit: Optional[float] = None,
+        max_angle_limit: Optional[float] = None,
+        max_joint_spd: Optional[float] = None,
+        timeout: float = 1.0,
+    ):
+        """Set the joint angle and velocity limits.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7, 255]
+        - 1~7: set the joint angle and velocity limits of the specified joint.
+        - 255: set the joint angle and velocity limits of all joints.
+
+        `min_angle_limit`: float
+        - The minimum angle limit in rad.
+            (Numerical precision: 1.74532925199e-3 rad)
+
+        `max_angle_limit`: float
+        - The maximum angle limit in rad.
+            (Numerical precision: 1.74532925199e-3 rad)
+
+        `max_joint_spd`: float
+        - The maximum joint speed in rad/s.
+            (Numerical precision: 1e-2 rad/s)
+
+        `timeout`: float, optional
+        - Timeout in seconds. Default is 1.0.
+
+        Returns
+        -------
+        bool
+            True if the joint angle and velocity limits are set successfully,
+            False otherwise.
+
+        Examples
+        --------
+        >>> success = robot.set_joint_angle_vel_limits(
+        ...     joint_index=1, min_angle_limit=-2.70526, max_angle_limit=2.70526
+        ... )
+        >>> if success:
+        >>>     print("Joint angle and velocity limits set successfully")
+
+        >>> success = robot.set_joint_angle_vel_limits(joint_index=1, max_joint_spd=3.14)
+        >>> if success:
+        >>>     print("Joint angle and velocity limits set successfully")
+        """
+        self._ctx._validate_timeout(timeout)
+        if joint_index not in self._JOINT_INDEX_LIST:
+            raise ValueError(f"Joint index should be {self._JOINT_INDEX_LIST}")
+
+        if joint_index == 255:
+            return self._all_joints_bool(
+                lambda i: self.set_joint_angle_vel_limits(
+                    i, min_angle_limit, max_angle_limit, max_joint_spd
+                )
+            )
+
+        min_angle_limit = (
+            0x7FFF if min_angle_limit is None else round(min_angle_limit * RAD2DEG * 1e1)
+        )
+        max_angle_limit = (
+            0x7FFF if max_angle_limit is None else round(max_angle_limit * RAD2DEG * 1e1)
+        )
+        max_joint_spd = (
+            0x7FFF if max_joint_spd is None else round(abs(max_joint_spd) * 1e2)
+        )
+
+        def request() -> None:
+            self._send_msg(
+                self._MSG_MotorAngleLimitMaxSpdSet(
+                    joint_index, max_angle_limit, min_angle_limit, max_joint_spd
+                )
+            )
+
+        def check() -> bool:
+            res = self.get_joint_angle_vel_limits(joint_index)
+            return not (
+                res is None
+                or min_angle_limit != 0x7FFF
+                and min_angle_limit != round(res.msg.min_angle_limit * RAD2DEG * 1e1)
+                or max_angle_limit != 0x7FFF
+                and max_angle_limit != round(res.msg.max_angle_limit * RAD2DEG * 1e1)
+                or max_joint_spd != 0x7FFF
+                and max_joint_spd != round(abs(res.msg.max_joint_spd) * 1e2)
+            )
+
+        return self._check_set_by_readback(
+            request=request,
+            check=check,
+            timeout=timeout,
+            stamp_key=f"set_joint_angle_vel_limits:{joint_index}",
+        )
+
+    def set_joint_acc_limits(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+        max_joint_acc: Optional[float] = None,
+        timeout: float = 1.0,
+    ):
+        """Set the joint acceleration limits.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7, 255]
+        - 1~7: set the joint acceleration limits of the specified joint.
+        - 255: set the joint acceleration limits of all joints.
+
+        `max_joint_acc`: float
+        - The maximum joint acceleration in rad/s^2.
+            (Numerical precision: 1e-2 rad/s^2)
+
+        `timeout`: float, optional
+        - Timeout in seconds. Default is 1.0.
+
+        Returns
+        -------
+        bool
+            True if the maximum joint acceleration is set successfully, False
+            otherwise.
+        """
+        self._ctx._validate_timeout(timeout)
+        if joint_index not in self._JOINT_INDEX_LIST:
+            raise ValueError(f"Joint index should be {self._JOINT_INDEX_LIST}")
+
+        if joint_index == 255:
+            return self._all_joints_bool(
+                lambda i: self.set_joint_acc_limits(i, max_joint_acc)
+            )
+
+        max_joint_acc = (
+            0x7FFF if max_joint_acc is None else round(abs(max_joint_acc) * 1e4)
+        )
+
+        def request() -> None:
+            self._send_msg(
+                self._MSG_JointConfig(
+                    joint_index=joint_index,
+                    acc_param_config_is_effective_or_not=0xAE,
+                    max_joint_acc=max_joint_acc,
+                )
+            )
+
+        def check() -> bool:
+            res = self.get_joint_acc_limits(joint_index)
+            return not (
+                res is None
+                or max_joint_acc != 0x7FFF
+                and max_joint_acc != round(abs(res.msg.max_joint_acc) * 1e4)
+            )
+
+        return self._check_set_by_readback(
+            request=request,
+            check=check,
+            timeout=timeout,
+            stamp_key=f"set_joint_acc_limits:{joint_index}",
+        )
+
+    def set_flange_vel_acc_limits(
+        self,
+        max_linear_vel: Optional[float] = None,
+        max_angular_vel: Optional[float] = None,
+        max_linear_acc: Optional[float] = None,
+        max_angular_acc: Optional[float] = None,
+        timeout: float = 1.0,
+    ):
+        """Set the flange velocity and acceleration limits.
+
+        Parameters
+        ----------
+        `max_linear_vel`: float
+        - The maximum linear velocity in m/s.
+            (Numerical precision: 1e-3 m/s)
+
+        `max_angular_vel`: float
+        - The maximum angular velocity in rad/s.
+            (Numerical precision: 1e-3 rad/s)
+
+        `max_linear_acc`: float
+        - The maximum linear acceleration in m/s^2.
+            (Numerical precision: 1e-3 m/s^2)
+
+        `max_angular_acc`: float
+        - The maximum angular acceleration in rad/s^2.
+            (Numerical precision: 1e-3 rad/s^2)
+
+        `timeout`: float, optional
+        - Timeout in seconds. Default is 1.0.
+
+        Returns
+        -------
+        bool
+            True if the end effector velocity and acceleration limits are set
+            successfully, False otherwise.
+
+        Examples
+        --------
+        >>> success = robot.set_flange_vel_acc_limits(
+        ...     max_linear_vel=1.0,
+        ...     max_angular_vel=0.06,
+        ...     max_linear_acc=1.5,
+        ...     max_angular_acc=0.4,
+        ... )
+        >>> if success:
+        >>>     print("Flange velocity and acceleration limits set successfully")
+        """
+        self._ctx._validate_timeout(timeout)
+
+        max_linear_vel = (
+            0x7FFF if max_linear_vel is None else round(abs(max_linear_vel) * 1e3)
+        )
+        max_angular_vel = (
+            0x7FFF if max_angular_vel is None else round(abs(max_angular_vel) * 1e3)
+        )
+        max_linear_acc = (
+            0x7FFF if max_linear_acc is None else round(abs(max_linear_acc) * 1e3)
+        )
+        max_angular_acc = (
+            0x7FFF if max_angular_acc is None else round(abs(max_angular_acc) * 1e3)
+        )
+
+        def request() -> None:
+            self._send_msg(
+                self._MSG_EndVelAccParamConfig(
+                    max_linear_vel,
+                    max_angular_vel,
+                    max_linear_acc,
+                    max_angular_acc,
+                )
+            )
+
+        def check() -> bool:
+            res = self.get_flange_vel_acc_limits()
+            return not (
+                res is None
+                or max_linear_vel != 0x7FFF
+                and max_linear_vel != round(abs(res.msg.end_max_linear_vel) * 1e3)
+                or max_angular_vel != 0x7FFF
+                and max_angular_vel != round(abs(res.msg.end_max_angular_vel) * 1e3)
+                or max_linear_acc != 0x7FFF
+                and max_linear_acc != round(abs(res.msg.end_max_linear_acc) * 1e3)
+                or max_angular_acc != 0x7FFF
+                and max_angular_acc != round(abs(res.msg.end_max_angular_acc) * 1e3)
+            )
+
+        return self._check_set_by_readback(
+            request=request,
+            check=check,
+            timeout=timeout,
+            stamp_key="set_flange_vel_acc_limits",
+        )
+
+    def set_crash_protection_rating(
+        self,
+        joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+        rating: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8] = 0,
+        timeout: float = 1.0,
+    ):
+        """Set the crash protection rating.
+
+        Parameters
+        ----------
+        `joint_index`: Literal[1, 2, 3, 4, 5, 6, 7, 255]
+        - 1~7: set the crash protection rating of the specified joint.
+        - 255: set the crash protection rating of all joints.
+
+        `rating`: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8]
+        - 0~8: set the crash protection rating of the specified joint.
+
+        `timeout`: float, optional
+        - Timeout in seconds. Default is 1.0.
+
+        Returns
+        -------
+        bool
+            True if the crash protection rating is set successfully, False otherwise.
+
+        Examples
+        --------
+        Set the crash protection rating of joint 1 to 1:
+        >>> success = robot.set_crash_protection_rating(joint_index=1, rating=1)
+        >>> if success:
+        >>>     print("Crash protection rating set successfully")
+
+        Set the crash protection rating of all joints to 0:
+        >>> success = robot.set_crash_protection_rating(joint_index=255, rating=0)
+        >>> if success:
+        >>>     print("Crash protection rating set successfully")
+        """
+        self._ctx._validate_timeout(timeout)
+        if joint_index not in self._JOINT_INDEX_LIST:
+            raise ValueError(f"Joint index should be {self._JOINT_INDEX_LIST}")
+        if rating < 0 or rating > 8:
+            raise ValueError("Crash protection rating should be between 0 and 8")
+
+        current_rating = self.get_crash_protection_rating()
+        if current_rating is None:
+            return False
+
+        if joint_index == 255:
+            joints = [rating] * self._JOINT_NUMS
+        else:
+            joints = current_rating.msg.copy()
+            joints[joint_index - 1] = rating
+
+        def request() -> None:
+            self._send_msg(self._MSG_CrashProtectionRatingConfig(*joints))
+
+        def check() -> bool:
+            res = self.get_crash_protection_rating()
+            return not (res is None or res.msg != joints)
+
+        return self._check_set_by_readback(
+            request=request,
+            check=check,
+            timeout=timeout,
+            stamp_key=f"set_crash_protection_rating:{joint_index}",
+        )
 
     # -------------------------- CPV --------------------------
 

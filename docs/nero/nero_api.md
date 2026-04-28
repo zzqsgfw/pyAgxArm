@@ -60,6 +60,17 @@
   - [CPV Command APIs](#cpv-command-apis)
   - [CPV Parameter Read APIs](#cpv-parameter-read-apis)
   - [CPV Parameter Write APIs](#cpv-parameter-write-apis)
+- [Advanced Parameter Reading and Configuration](#advanced-parameter-reading-and-configuration)
+  - [Get Joint Angle/Velocity Limits — get_joint_angle_vel_limits()](#get-joint-anglevelocity-limits--get_joint_angle_vel_limits)
+  - [Get Joint Acceleration Limits — get_joint_acc_limits()](#get-joint-acceleration-limits--get_joint_acc_limits)
+  - [Get Flange Velocity/Acceleration Limits — get_flange_vel_acc_limits()](#get-flange-velocityacceleration-limits--get_flange_vel_acc_limits)
+  - [Get Crash Protection Rating — get_crash_protection_rating()](#get-crash-protection-rating--get_crash_protection_rating)
+  - [Calibrate Joint Zero Point — calibrate_joint()](#calibrate-joint-zero-point--calibrate_joint)
+  - [Clear Joint Error — clear_joint_error()](#clear-joint-error--clear_joint_error)
+  - [Set Joint Angle/Velocity Limits — set_joint_angle_vel_limits()](#set-joint-anglevelocity-limits--set_joint_angle_vel_limits)
+  - [Set Joint Acceleration Limits — set_joint_acc_limits()](#set-joint-acceleration-limits--set_joint_acc_limits)
+  - [Set Flange Velocity/Acceleration Limits — set_flange_vel_acc_limits()](#set-flange-velocityacceleration-limits--set_flange_vel_acc_limits)
+  - [Set Crash Protection Rating — set_crash_protection_rating()](#set-crash-protection-rating--set_crash_protection_rating)
 
 ---
 
@@ -1790,6 +1801,427 @@ robot.move_cpv_vel(joint_index=1, vel=0.2)
 
 ---
 
+## Advanced Parameter Reading and Configuration
+
+### Get Joint Angle/Velocity Limits — `get_joint_angle_vel_limits()`
+
+**Description:** Get the joint angle and velocity limits.
+
+**Function Definition:**
+
+```python
+get_joint_angle_vel_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd] | None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index, range: `1~7` |
+| `timeout` | `float` | Response timeout in seconds, default `1.0`; `0.0` means non-blocking |
+| `min_interval` | `float` | Minimum request interval in seconds, default `1.0` |
+
+**Return Value:** `MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd] | None`
+
+**Message Fields (`.msg`):**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `min_angle_limit` | `float` | Minimum angle limit (rad) |
+| `max_angle_limit` | `float` | Maximum angle limit (rad) |
+| `min_joint_spd` | `float` | Minimum joint speed limit (rad/s) |
+| `max_joint_spd` | `float` | Maximum joint speed limit (rad/s) |
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_joint_angle_vel_limits(1)
+if limit is not None:
+    print(limit.msg.min_angle_limit, limit.msg.max_angle_limit)
+    print(limit.msg.min_joint_spd, limit.msg.max_joint_spd)
+```
+
+---
+
+### Get Joint Acceleration Limits — `get_joint_acc_limits()`
+
+**Description:** Get the joint acceleration limits.
+
+**Function Definition:**
+
+```python
+get_joint_acc_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit] | None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index, range: `1~7` |
+| `timeout` | `float` | Response timeout in seconds, default `1.0`; `0.0` means non-blocking |
+| `min_interval` | `float` | Minimum request interval in seconds, default `1.0` |
+
+**Return Value:** `MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit] | None`
+
+**Message Fields (`.msg`):**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `max_joint_acc` | `float` | Maximum joint acceleration limit (rad/s²) |
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_joint_acc_limits(1)
+if limit is not None:
+    print(limit.msg.max_joint_acc)
+    print(limit.hz, limit.timestamp)
+```
+
+---
+
+### Get Flange Velocity/Acceleration Limits — `get_flange_vel_acc_limits()`
+
+**Description:** Get the flange velocity and acceleration limits.
+
+**Function Definition:**
+
+```python
+get_flange_vel_acc_limits(
+    self,
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam] | None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `timeout` | `float` | Response timeout in seconds, default `1.0`; `0.0` means non-blocking |
+| `min_interval` | `float` | Minimum request interval in seconds, default `1.0` |
+
+**Return Value:** `MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam] | None`
+
+**Message Fields (`.msg`):**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `end_max_linear_vel` | `float` | Flange maximum linear velocity (m/s) |
+| `end_max_angular_vel` | `float` | Flange maximum angular velocity (rad/s) |
+| `end_max_linear_acc` | `float` | Flange maximum linear acceleration (m/s²) |
+| `end_max_angular_acc` | `float` | Flange maximum angular acceleration (rad/s²) |
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_flange_vel_acc_limits()
+if limit is not None:
+    print(
+        limit.msg.end_max_linear_vel,
+        limit.msg.end_max_angular_vel,
+        limit.msg.end_max_linear_acc,
+        limit.msg.end_max_angular_acc,
+    )
+    print(limit.hz, limit.timestamp)
+```
+
+---
+
+### Get Crash Protection Rating — `get_crash_protection_rating()`
+
+**Description:** Get the crash protection rating.
+
+**Function Definition:**
+
+```python
+get_crash_protection_rating(
+    self,
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[list[int]] | None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `timeout` | `float` | Response timeout in seconds, default `1.0`; `0.0` means non-blocking |
+| `min_interval` | `float` | Minimum request interval in seconds, default `1.0` |
+
+**Return Value:** `MessageAbstract[list[int]] | None`
+
+`.msg` is a per-joint crash protection level list (joint order), each item is `int` in range `0~8`.
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+rating = robot.get_crash_protection_rating()
+if rating is not None:
+    print(rating.msg)
+    print(rating.hz, rating.timestamp)
+```
+
+---
+
+### Calibrate Joint Zero Point — `calibrate_joint()`
+
+**Description:** Set the current position as the joint zero point.
+
+**Function Definition:**
+
+```python
+calibrate_joint(self, joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255) -> None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index: `1~7` calibrates a single joint; `255` calibrates all joints |
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+# Typical workflow: disable -> manually align zero -> calibrate
+robot.disable(1)
+input("Move joint 1 to zero pose, then press Enter...")
+robot.calibrate_joint(1)
+robot.enable(1)
+```
+
+---
+
+### Clear Joint Error — `clear_joint_error()`
+
+**Description:** Clear error code(s) on one joint or all joints.
+
+**Function Definition:**
+
+```python
+clear_joint_error(self, joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255) -> None
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index: `1~7` clears error on a single joint; `255` clears errors on all joints |
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+robot.clear_joint_error(255)
+```
+
+---
+
+### Set Joint Angle/Velocity Limits — `set_joint_angle_vel_limits()`
+
+**Description:** Set the joint angle and velocity limits.
+
+**Function Definition:**
+
+```python
+set_joint_angle_vel_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    min_angle_limit: Optional[float] = None,
+    max_angle_limit: Optional[float] = None,
+    max_joint_spd: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index: `1~7` for single joint, `255` for all joints |
+| `min_angle_limit` | `Optional[float]` | Minimum angle limit (rad); `None` means keep unchanged |
+| `max_angle_limit` | `Optional[float]` | Maximum angle limit (rad); `None` means keep unchanged |
+| `max_joint_spd` | `Optional[float]` | Maximum joint speed limit (rad/s); `None` means keep unchanged |
+| `timeout` | `float` | ACK/verification timeout in seconds, default `1.0` |
+
+**Return Value:** `bool` — `True` means ACK is received and read-back check passes.
+
+**Usage Example:**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+success = robot.set_joint_angle_vel_limits(
+    joint_index=1,
+    min_angle_limit=-2.70526,
+    max_angle_limit=2.70526,
+    max_joint_spd=3.14,
+)
+print("set_joint_angle_vel_limits success =", success)
+```
+
+---
+
+### Set Joint Acceleration Limits — `set_joint_acc_limits()`
+
+**Description:** Set the joint acceleration limits.
+
+**Function Definition:**
+
+```python
+set_joint_acc_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    max_joint_acc: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index: `1~7` for single joint, `255` for all joints |
+| `max_joint_acc` | `Optional[float]` | Maximum acceleration limit (rad/s²); `None` means keep unchanged |
+| `timeout` | `float` | ACK/verification timeout in seconds, default `1.0` |
+
+**Return Value:** `bool` — `True` means ACK is received and read-back check passes.
+
+**Usage Example:**
+
+```python
+success = robot.set_joint_acc_limits(joint_index=1, max_joint_acc=5.0)
+print("set_joint_acc_limits success =", success)
+```
+
+---
+
+### Set Flange Velocity/Acceleration Limits — `set_flange_vel_acc_limits()`
+
+**Description:** Set the flange velocity and acceleration limits.
+
+**Function Definition:**
+
+```python
+set_flange_vel_acc_limits(
+    self,
+    max_linear_vel: Optional[float] = None,
+    max_angular_vel: Optional[float] = None,
+    max_linear_acc: Optional[float] = None,
+    max_angular_acc: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `max_linear_vel` | `Optional[float]` | Maximum linear velocity (m/s); `None` means keep unchanged |
+| `max_angular_vel` | `Optional[float]` | Maximum angular velocity (rad/s); `None` means keep unchanged |
+| `max_linear_acc` | `Optional[float]` | Maximum linear acceleration (m/s²); `None` means keep unchanged |
+| `max_angular_acc` | `Optional[float]` | Maximum angular acceleration (rad/s²); `None` means keep unchanged |
+| `timeout` | `float` | ACK/verification timeout in seconds, default `1.0` |
+
+**Return Value:** `bool` — `True` means ACK is received and read-back check passes.
+
+**Usage Example:**
+
+```python
+success = robot.set_flange_vel_acc_limits(
+    max_linear_vel=1.0,
+    max_angular_vel=0.06,
+    max_linear_acc=1.5,
+    max_angular_acc=0.4,
+)
+print("set_flange_vel_acc_limits success =", success)
+```
+
+---
+
+### Set Crash Protection Rating — `set_crash_protection_rating()`
+
+**Description:** Set crash protection rating for one joint or all joints.
+
+**Function Definition:**
+
+```python
+set_crash_protection_rating(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    rating: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8] = 0,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `joint_index` | `int` | Joint index: `1~7` for single joint, `255` for all joints |
+| `rating` | `int` | Crash protection level, range `[0, 8]`; `0` means disabled. Higher means more sensitive |
+| `timeout` | `float` | ACK/verification timeout in seconds, default `1.0` |
+
+**Return Value:** `bool` — `True` means ACK is received and read-back check passes.
+
+**Usage Example:**
+
+```python
+success = robot.set_crash_protection_rating(joint_index=1, rating=1)
+print("set_crash_protection_rating success =", success)
+```
+
+---
+
 # Nero 机械臂 API 使用文档
 
 > 本文档描述 `pyAgxArm` SDK 为 Nero 系列机械臂（7-DOF）提供的 Python API。涵盖实例创建、状态读取、运动控制、参数配置等全部接口。
@@ -1852,6 +2284,17 @@ robot.move_cpv_vel(joint_index=1, vel=0.2)
   - [CPV 指令接口](#cpv-指令接口)
   - [CPV 参数读取接口](#cpv-参数读取接口)
   - [CPV 参数写入接口](#cpv-参数写入接口)
+- [高级参数读取与配置](#高级参数读取与配置)
+  - [读取关节角度/速度限制 — get_joint_angle_vel_limits()](#读取关节角度速度限制--get_joint_angle_vel_limits)
+  - [读取关节加速度限制 — get_joint_acc_limits()](#读取关节加速度限制--get_joint_acc_limits)
+  - [读取法兰速度/加速度限制 — get_flange_vel_acc_limits()](#读取法兰速度加速度限制--get_flange_vel_acc_limits)
+  - [读取碰撞防护等级 — get_crash_protection_rating()](#读取碰撞防护等级--get_crash_protection_rating)
+  - [关节零点校准 — calibrate_joint()](#关节零点校准--calibrate_joint)
+  - [关节错误清除 — clear_joint_error()](#关节错误清除--clear_joint_error)
+  - [配置关节角度/速度限制 — set_joint_angle_vel_limits()](#配置关节角度速度限制--set_joint_angle_vel_limits)
+  - [配置关节加速度限制 — set_joint_acc_limits()](#配置关节加速度限制--set_joint_acc_limits)
+  - [配置法兰速度/加速度限制 — set_flange_vel_acc_limits()](#配置法兰速度加速度限制--set_flange_vel_acc_limits)
+  - [配置碰撞防护等级 — set_crash_protection_rating()](#配置碰撞防护等级--set_crash_protection_rating)
 
 ---
 
@@ -3578,3 +4021,423 @@ print("cpv_acc =", robot.get_cpv_acc(joint_index=1))
 robot.move_cpv_vel(joint_index=1, vel=0.2)
 ```
 
+---
+
+## 高级参数读取与配置
+
+### 读取关节角度/速度限制 — `get_joint_angle_vel_limits()`
+
+**功能说明：** 查询指定关节的角度限制与速度限制（由控制器反馈）。
+
+**函数定义：**
+
+```python
+get_joint_angle_vel_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd] | None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号，范围：`1~7` |
+| `timeout` | `float` | 等待反馈超时（秒），默认 `1.0`；`0.0` 表示非阻塞 |
+| `min_interval` | `float` | 最小请求间隔（秒），默认 `1.0` |
+
+**返回值：** `MessageAbstract[ArmMsgFeedbackCurrentMotorAngleLimitMaxSpd] | None`
+
+**消息字段（`.msg`）：**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `min_angle_limit` | `float` | 最小角度限制（rad） |
+| `max_angle_limit` | `float` | 最大角度限制（rad） |
+| `min_joint_spd` | `float` | 最小关节速度限制（rad/s） |
+| `max_joint_spd` | `float` | 最大关节速度限制（rad/s） |
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_joint_angle_vel_limits(1)
+if limit is not None:
+    print(limit.msg.min_angle_limit, limit.msg.max_angle_limit)
+    print(limit.msg.min_joint_spd, limit.msg.max_joint_spd)
+```
+
+---
+
+### 读取关节加速度限制 — `get_joint_acc_limits()`
+
+**功能说明：** 查询指定关节的最大加速度限制。
+
+**函数定义：**
+
+```python
+get_joint_acc_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7],
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit] | None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号，范围：`1~7` |
+| `timeout` | `float` | 等待反馈超时（秒），默认 `1.0`；`0.0` 表示非阻塞 |
+| `min_interval` | `float` | 最小请求间隔（秒），默认 `1.0` |
+
+**返回值：** `MessageAbstract[ArmMsgFeedbackCurrentMotorMaxAccLimit] | None`
+
+**消息字段（`.msg`）：**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `max_joint_acc` | `float` | 最大关节加速度限制（rad/s²） |
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_joint_acc_limits(1)
+if limit is not None:
+    print(limit.msg.max_joint_acc)
+    print(limit.hz, limit.timestamp)
+```
+
+---
+
+### 读取法兰速度/加速度限制 — `get_flange_vel_acc_limits()`
+
+**功能说明：** 查询末端最大线速度/角速度与线加速度/角加速度限制。
+
+**函数定义：**
+
+```python
+get_flange_vel_acc_limits(
+    self,
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam] | None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `timeout` | `float` | 等待反馈超时（秒），默认 `1.0`；`0.0` 表示非阻塞 |
+| `min_interval` | `float` | 最小请求间隔（秒），默认 `1.0` |
+
+**返回值：** `MessageAbstract[ArmMsgFeedbackCurrentEndVelAccParam] | None`
+
+**消息字段（`.msg`）：**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `end_max_linear_vel` | `float` | 末端最大线速度（m/s） |
+| `end_max_angular_vel` | `float` | 末端最大角速度（rad/s） |
+| `end_max_linear_acc` | `float` | 末端最大线加速度（m/s²） |
+| `end_max_angular_acc` | `float` | 末端最大角加速度（rad/s²） |
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+limit = robot.get_flange_vel_acc_limits()
+if limit is not None:
+    print(
+        limit.msg.end_max_linear_vel,
+        limit.msg.end_max_angular_vel,
+        limit.msg.end_max_linear_acc,
+        limit.msg.end_max_angular_acc,
+    )
+    print(limit.hz, limit.timestamp)
+```
+
+---
+
+### 读取碰撞防护等级 — `get_crash_protection_rating()`
+
+**功能说明：** 查询各关节碰撞防护等级（控制器返回列表）。
+
+**函数定义：**
+
+```python
+get_crash_protection_rating(
+    self,
+    timeout: float = 1.0,
+    min_interval: float = 1.0,
+) -> MessageAbstract[list[int]] | None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `timeout` | `float` | 等待反馈超时（秒），默认 `1.0`；`0.0` 表示非阻塞 |
+| `min_interval` | `float` | 最小请求间隔（秒），默认 `1.0` |
+
+**返回值：** `MessageAbstract[list[int]] | None`
+
+`.msg` 为碰撞防护等级列表（按关节顺序），每项为 `int`（范围：`0~8`）。**等级越高越敏感，越容易触发碰撞保护机制**（更保守）。
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+rating = robot.get_crash_protection_rating()
+if rating is not None:
+    print(rating.msg)
+    print(rating.hz, rating.timestamp)
+```
+
+---
+
+### 关节零点校准 — `calibrate_joint()`
+
+**功能说明：** 将当前位置设置为关节零点。
+
+**函数定义：**
+
+```python
+calibrate_joint(self, joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255) -> None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号：`1~7` 校准单关节；`255` 校准全部关节 |
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+# 常见流程：先失能 -> 手动摆到零位 -> 执行校准
+robot.disable(1)
+input("请将关节1移动到零位后按回车...")
+robot.calibrate_joint(1)
+robot.enable(1)
+```
+
+---
+
+### 关节错误清除 — `clear_joint_error()`
+
+**功能说明：** 清除单关节或全部关节错误码。
+
+**函数定义：**
+
+```python
+clear_joint_error(self, joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255) -> None
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号：`1~7` 清除单关节错误；`255` 清除全部关节错误 |
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+robot.clear_joint_error(255)
+```
+
+---
+
+### 配置关节角度/速度限制 — `set_joint_angle_vel_limits()`
+
+**功能说明：** 设置关节角度/速度限制，并通过读回校验是否生效。
+
+**函数定义：**
+
+```python
+set_joint_angle_vel_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    min_angle_limit: Optional[float] = None,
+    max_angle_limit: Optional[float] = None,
+    max_joint_spd: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号：`1~7` 配置单关节；`255` 配置全部 |
+| `min_angle_limit` | `Optional[float]` | 最小角度限制（rad）；`None` 表示不配置 |
+| `max_angle_limit` | `Optional[float]` | 最大角度限制（rad）；`None` 表示不配置 |
+| `max_joint_spd` | `Optional[float]` | 最大关节速度限制（rad/s）；`None` 表示不配置 |
+| `timeout` | `float` | 等待 ACK/校验超时（秒），默认 `1.0` |
+
+**返回值：** `bool` — `True` 表示已收到 ACK 且读回校验通过；`False` 表示超时/失败/校验未通过。
+
+**使用示例：**
+
+```python
+from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, NeroFW
+
+cfg = create_agx_arm_config(robot=ArmModel.NERO, firmeware_version=NeroFW.DEFAULT, channel="can0")
+robot = AgxArmFactory.create_arm(cfg)
+robot.connect()
+
+success = robot.set_joint_angle_vel_limits(
+    joint_index=1,
+    min_angle_limit=-2.70526,
+    max_angle_limit=2.70526,
+    max_joint_spd=3.14,
+)
+print("set_joint_angle_vel_limits success =", success)
+```
+
+---
+
+### 配置关节加速度限制 — `set_joint_acc_limits()`
+
+**功能说明：** 设置指定关节最大加速度限制。
+
+**函数定义：**
+
+```python
+set_joint_acc_limits(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    max_joint_acc: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号：`1~7` 配置单关节；`255` 配置全部 |
+| `max_joint_acc` | `Optional[float]` | 最大加速度（rad/s²）；`None` 表示不配置 |
+| `timeout` | `float` | 等待 ACK/校验超时（秒），默认 `1.0` |
+
+**返回值：** `bool` — `True` 表示已收到 ACK 且读回校验通过。
+
+**使用示例：**
+
+```python
+success = robot.set_joint_acc_limits(joint_index=1, max_joint_acc=5.0)
+print("set_joint_acc_limits success =", success)
+```
+
+---
+
+### 配置法兰速度/加速度限制 — `set_flange_vel_acc_limits()`
+
+**功能说明：** 设置末端速度/加速度限制。
+
+**函数定义：**
+
+```python
+set_flange_vel_acc_limits(
+    self,
+    max_linear_vel: Optional[float] = None,
+    max_angular_vel: Optional[float] = None,
+    max_linear_acc: Optional[float] = None,
+    max_angular_acc: Optional[float] = None,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `max_linear_vel` | `Optional[float]` | 最大线速度（m/s）；`None` 表示不配置 |
+| `max_angular_vel` | `Optional[float]` | 最大角速度（rad/s）；`None` 表示不配置 |
+| `max_linear_acc` | `Optional[float]` | 最大线加速度（m/s²）；`None` 表示不配置 |
+| `max_angular_acc` | `Optional[float]` | 最大角加速度（rad/s²）；`None` 表示不配置 |
+| `timeout` | `float` | 等待 ACK/校验超时（秒），默认 `1.0` |
+
+**返回值：** `bool` — `True` 表示已收到 ACK 且读回校验通过。
+
+**使用示例：**
+
+```python
+success = robot.set_flange_vel_acc_limits(
+    max_linear_vel=1.0,
+    max_angular_vel=0.06,
+    max_linear_acc=1.5,
+    max_angular_acc=0.4,
+)
+print("set_flange_vel_acc_limits success =", success)
+```
+
+---
+
+### 配置碰撞防护等级 — `set_crash_protection_rating()`
+
+**功能说明：** 设置碰撞防护等级（可指定单关节或全部关节）。
+
+**函数定义：**
+
+```python
+set_crash_protection_rating(
+    self,
+    joint_index: Literal[1, 2, 3, 4, 5, 6, 7, 255] = 255,
+    rating: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8] = 0,
+    timeout: float = 1.0,
+) -> bool
+```
+
+**参数说明：**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `joint_index` | `int` | 关节序号：`1~7` 配置单关节；`255` 配置全部，默认：`255` |
+| `rating` | `int` | 碰撞防护等级，范围：`[0, 8]`（`0` = 不检测），默认：`0`。**等级越高越敏感，越容易触发碰撞保护**（更保守） |
+| `timeout` | `float` | 等待 ACK/校验超时（秒），默认 `1.0` |
+
+**返回值：** `bool` — `True` 表示已收到 ACK 且读回校验通过。
+
+**使用示例：**
+
+```python
+success = robot.set_crash_protection_rating(joint_index=1, rating=1)
+print("set_crash_protection_rating success =", success)
+```

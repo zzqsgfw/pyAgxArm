@@ -33,6 +33,9 @@ from ....msgs.nero.default import (
     ArmMsgFeedbackLeaderJointStates6,
     ArmMsgFeedbackLeaderJointStates7,
     ArmMsgFeedbackFirmware,
+    ArmMsgFeedbackAllCurrentMotorAngleLimitMaxSpd,
+    ArmMsgFeedbackCrashProtectionRating,
+    ArmMsgFeedbackAllCurrentMotorMaxAccLimit,
 )
 from ...core.protocol_parser_abstract import DriverAPIOptions, DriverAPIProtoAdapter
 from ....msgs.core import StrStruct
@@ -92,6 +95,17 @@ class Codec(PiperCodec):
         def decoder(m: AttributeBase, d: bytearray) -> None:
             setattr(m, f"joint_{index}", nc.from_bytes_to_float(d))
         return decoder
+    
+    def decode_47C_motor_max_acc_limit(
+        self, m: ArmMsgFeedbackAllCurrentMotorMaxAccLimit, d: bytearray
+    ) -> None:
+        m.joint_index = nc.ConvertToNegative_8bit(nc.ConvertBytesToInt(d, 0, 1), False)
+        # Robustness: ignore corrupted/out-of-range joint index instead of crashing.
+        if not (1 <= m.joint_index <= len(m.joints)):
+            return
+        m.joints[m.joint_index - 1].max_joint_acc = (
+            nc.ConvertToNegative_16bit(nc.ConvertBytesToInt(d, 1, 3), False) * 1e-3
+        )
 
     def decode_4AF_firmware_info(self, m: ArmMsgFeedbackFirmware, d: bytearray) -> None:
         if len(d) != 8 or d == bytearray(
@@ -129,6 +143,16 @@ class Parser(PiperParser):
         motor_state_7: Optional[MessageAbstract[ArmMsgFeedbackHighSpd7]]
         driver_state_7: Optional[MessageAbstract[ArmMsgFeedbackLowSpd7]]
 
+        motor_angle_limit_max_spd: Optional[
+            MessageAbstract[ArmMsgFeedbackAllCurrentMotorAngleLimitMaxSpd]
+        ]
+        crash_protection_rating: Optional[
+            MessageAbstract[ArmMsgFeedbackCrashProtectionRating]
+        ]
+        motor_max_acc_limit: Optional[
+            MessageAbstract[ArmMsgFeedbackAllCurrentMotorMaxAccLimit]
+        ]
+
         leader_joint_1: Optional[MessageAbstract[ArmMsgFeedbackLeaderJointStates1]]
         leader_joint_2: Optional[MessageAbstract[ArmMsgFeedbackLeaderJointStates2]]
         leader_joint_3: Optional[MessageAbstract[ArmMsgFeedbackLeaderJointStates3]]
@@ -150,14 +174,19 @@ class Parser(PiperParser):
         rx = super()._build_rx_map()
 
         # Nero 精简协议：移除Nero不支持的接收映射
-        for can_id in (0x155, 0x156, 0x157, 0x473,
-                       0x476, 0x478, 0x47B, 0x47C,
+        for can_id in (0x155, 0x156, 0x157,
+                       0x476,
                        ):
             rx.pop(can_id, None)
 
         # Nero 增量：第 7 轴相关 CAN-ID
         rx.update(
             {
+                0x47B: (
+                    "crash_protection_rating",
+                    ArmMsgFeedbackCrashProtectionRating,
+                    self._codec.decode_47B_crash_protection_rating,
+                ),
                 0x187: (
                     "cpv_response_7",
                     ArmMsgFeedbackCPVResponse7,
@@ -213,6 +242,21 @@ class Parser(PiperParser):
                     ArmMsgFeedbackStatus,
                     self._codec.decode_2A1_status
                 ),
+                0x473: (
+                    "motor_angle_limit_max_spd",
+                    ArmMsgFeedbackAllCurrentMotorAngleLimitMaxSpd,
+                    self._codec.decode_473_motor_angle_limit_max_spd
+                ),
+                0x47B: (
+                    "crash_protection_rating",
+                    ArmMsgFeedbackCrashProtectionRating,
+                    self._codec.decode_47B_crash_protection_rating
+                ),
+                0x47C: (
+                    "motor_max_acc_limit",
+                    ArmMsgFeedbackAllCurrentMotorMaxAccLimit,
+                    self._codec.decode_47C_motor_max_acc_limit
+                ),
                 0x4AF: (
                     "firmware_info",
                     ArmMsgFeedbackFirmware,
@@ -263,9 +307,7 @@ class Parser(PiperParser):
         tx = super()._build_tx_map()
 
         # Nero 精简协议：移除Nero不支持的发送映射
-        remove_can_ids = {0x191, 0x472,
-                          0x474, 0x475, 0x477,
-                          0x479, 0x47A}
+        remove_can_ids = {0x191}
         for msg_type, (can_id, _enc) in list(tx.items()):
             if can_id in remove_can_ids:
                 tx.pop(msg_type, None)

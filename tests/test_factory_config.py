@@ -10,6 +10,7 @@ _LOAD_CLASS_CASES = [
     (ArmModel.PIPER, PiperFW.V188, "pyAgxArm.protocols.can_protocol.drivers.piper.versions.v188.driver"),
     (ArmModel.NERO, NeroFW.DEFAULT, "pyAgxArm.protocols.can_protocol.drivers.nero.default.driver"),
     (ArmModel.NERO, NeroFW.V111, "pyAgxArm.protocols.can_protocol.drivers.nero.versions.v111.driver"),
+    (ArmModel.NERO, NeroFW.V112, "pyAgxArm.protocols.can_protocol.drivers.nero.versions.v112.driver"),
     (ArmModel.PIPER_H, PiperFW.DEFAULT, "pyAgxArm.protocols.can_protocol.drivers.piper_h.default.driver"),
     (ArmModel.PIPER_H, PiperFW.V183, "pyAgxArm.protocols.can_protocol.drivers.piper_h.versions.v183.driver"),
     (ArmModel.PIPER_H, PiperFW.V188, "pyAgxArm.protocols.can_protocol.drivers.piper_h.versions.v188.driver"),

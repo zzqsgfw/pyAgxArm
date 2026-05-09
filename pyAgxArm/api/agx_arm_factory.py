@@ -7,6 +7,7 @@ from ..protocols.can_protocol.comms import *
 from ..protocols.can_protocol.drivers import (
     NeroDriverDefault,
     NeroDriverV111,
+    NeroDriverV112,
     PiperDriverDefault,
     PiperDriverV183,
     PiperDriverV188,
@@ -64,9 +65,10 @@ def create_agx_arm_config(
 
             from pyAgxArm import NeroFW
             NeroFW.DEFAULT   # firmware ≤ 1.10
-            NeroFW.V111      # firmware ≥ 1.11
+            NeroFW.V111      # firmware = 1.11
+            NeroFW.V112      # firmware ≥ 1.12
 
-        Raw strings (``"default"`` / ``"v183"`` / ``"v188"`` / ``"v111"``) are also accepted.
+        Raw strings (``"default"`` / ``"v183"`` / ``"v188"`` / ``"v111"`` / ``"v112"``) are also accepted.
 
     **kwargs
         Additional keyword arguments forwarded to the comm layer
@@ -142,6 +144,7 @@ class AgxArmFactory:
             "can": {
                 "default": NeroDriverDefault,
                 "v111": NeroDriverV111,
+                "v112": NeroDriverV112,
             },
         },
         "piper_h": {
@@ -184,7 +187,7 @@ class AgxArmFactory:
         comm    : can
         firmeware_version :
             Piper 系列: default / v183 / v188
-            Nero 系列 : default / v111
+            Nero 系列 : default / v111 / v112
         """
         cls._registry.setdefault(robot, {})
         cls._registry[robot].setdefault(comm, {})

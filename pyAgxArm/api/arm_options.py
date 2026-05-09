@@ -48,7 +48,8 @@ class NeroFW:
     Constant Firmware range
     ======== ========================
     DEFAULT  <= 1.10
-    V111     >= 1.11
+    V111     == 1.11
+    V112     >= 1.12
     ======== ========================
 
     Use::
@@ -59,3 +60,4 @@ class NeroFW:
 
     DEFAULT: Final[Literal["default"]] = "default"
     V111: Final[Literal["v111"]] = "v111"
+    V112: Final[Literal["v112"]] = "v112"

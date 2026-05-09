@@ -8,7 +8,7 @@ from .parser import Parser, NeroV111DriverAPIProtoAdapter
 
 
 class Driver(DefaultDriver):
-    """Nero CAN driver for firmware >= v111 (1.11).
+    """Nero CAN driver for firmware == v111 (1.11).
 
     Terminology
     -----------

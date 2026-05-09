@@ -4,6 +4,7 @@ from typing import Any, TypeVar, overload
 from ..protocols.can_protocol.drivers import (
     NeroDriverDefault,
     NeroDriverV111,
+    NeroDriverV112,
     PiperDriverDefault,
     PiperDriverV183,
     PiperDriverV188,
@@ -23,6 +24,8 @@ from ..protocols.can_protocol.drivers import (
 class NeroCanDefaultConfig():
     pass
 class NeroCanV111Config():
+    pass
+class NeroCanV112Config():
     pass
 
 class PiperCanDefaultConfig():
@@ -72,6 +75,14 @@ def create_agx_arm_config(
     firmeware_version: Literal["v111"] = ...,
     **kwargs: Any
 ) -> NeroCanV111Config: ...
+
+@overload
+def create_agx_arm_config(
+    robot: Literal["nero"],
+    comm: Literal["can"] = ...,
+    firmeware_version: Literal["v112"] = ...,
+    **kwargs: Any
+) -> NeroCanV112Config: ...
 
 # --- piper ---
 
@@ -227,7 +238,13 @@ class AgxArmFactory:
     @classmethod
     @overload
     def create_arm(cls, config: NeroCanV111Config, **kwargs) -> NeroDriverV111:
-        """Nero CAN driver for firmware >= v111."""
+        """Nero CAN driver for firmware == v111."""
+        ...
+
+    @classmethod
+    @overload
+    def create_arm(cls, config: NeroCanV112Config, **kwargs) -> NeroDriverV112:
+        """Nero CAN driver for firmware >= v112."""
         ...
 
     # --- piper ---

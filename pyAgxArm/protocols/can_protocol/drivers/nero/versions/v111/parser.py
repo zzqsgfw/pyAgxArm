@@ -24,10 +24,10 @@ class NeroV111DriverAPIProtoAdapter(NeroDefaultDriverAPIProtoAdapter):
 
 
 class Codec(DefaultCodec):
-    """v111+ codec: 12-bit t_ff, no CRC."""
+    """v111 codec: 12-bit t_ff, no CRC."""
 
     def pack_joint_mit_ctrl(self, joint_mit_ctrl: ArmMsgJointMitCtrl) -> bytearray:
-        """v188+: 12-bit t_ff, no CRC.
+        """v111: 12-bit t_ff, no CRC.
 
         Byte layout (8 bytes total):
             Byte 0-1: p_des  [15:0]   (16 bit)
@@ -67,7 +67,7 @@ class Codec(DefaultCodec):
 
 
 class Parser(DefaultParser):
-    """v111+ parser using CodecV111."""
+    """v111 parser using CodecV111."""
 
     def __init__(self, fps_manager, codec: Optional[Codec] = None):
         super().__init__(fps_manager, codec=codec or Codec())

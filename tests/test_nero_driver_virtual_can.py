@@ -48,16 +48,20 @@ def test_nero_driver_demo_style_api_with_virtual_device(fw):
         device.stop()
 
 
-def test_nero_get_leader_joint_angles_virtual_slave():
+@pytest.mark.parametrize("fw", [NeroFW.DEFAULT, NeroFW.V112])
+def test_nero_get_leader_joint_angles_virtual_slave(fw):
     channel = new_virtual_channel("ci_nero_leader")
     device = NeroCanSlave(channel=channel)
     device.start()
     try:
-        arm = _make_nero_arm(NeroFW.DEFAULT, channel)
+        arm = _make_nero_arm(fw, channel)
         arm.connect()
         # 主动反馈类：由模拟臂主动发送测试 hex 帧，主机只校验解码值。
         device.emit_proactive_feedback_once()
         exp = [0.01] * 7
+        if fw == NeroFW.V112:
+            # v112: leader data comes from 0x155/0x156/0x157/0x170.
+            exp = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07]
 
         def _leader_ok():
             m = arm.get_leader_joint_angles()

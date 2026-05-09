@@ -20,7 +20,7 @@ _MOTION_MODE_TO_FEEDBACK = {
 
 
 class NeroCanSlave:
-    """模拟 Nero：主动反馈（251–267、2A1–2A9、501–507）只按需发 **一轮**；不测真实周期。"""
+    """模拟 Nero：主动反馈（251–267、2A1–2A9、501–507、155–157）只按需发一轮。"""
 
     def __init__(self, channel: str):
         self._bus = can.Bus(interface="virtual", channel=channel, receive_own_messages=False)
@@ -182,6 +182,19 @@ class NeroCanSlave:
                     is_extended_id=False,
                     arbitration_id=lid,
                     data=pl.pack_leader_joint_rad(lr[i]),
+                )
+            )
+        for aid, pair in (
+            (0x155, (lr[0], lr[1])),
+            (0x156, (lr[2], lr[3])),
+            (0x157, (lr[4], lr[5])),
+            (0x170, (lr[6], 0.0)),
+        ):
+            frames.append(
+                can.Message(
+                    is_extended_id=False,
+                    arbitration_id=aid,
+                    data=pl.pack_joint_ctrl_pair_rad(pair[0], pair[1]),
                 )
             )
         return frames

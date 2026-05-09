@@ -55,6 +55,13 @@ def pack_joint_pair_feedback(j1_rad: float, j2_rad: float) -> bytes:
     return _from_hex(_HEX_2A5_JOINT12)
 
 
+def pack_joint_ctrl_pair_rad(j1_rad: float, j2_rad: float) -> bytes:
+    """Piper-style joint control payload (0x155/0x156/0x157), rad -> 0.001 deg int32."""
+    mdeg1 = int(round(j1_rad * 57.29577951308232 * 1e3))
+    mdeg2 = int(round(j2_rad * 57.29577951308232 * 1e3))
+    return mdeg1.to_bytes(4, "big", signed=True) + mdeg2.to_bytes(4, "big", signed=True)
+
+
 def pack_arm_status(
     ctrl_mode: int = 0x01,
     arm_status: int = 0x00,

@@ -1,6 +1,7 @@
 from .nero import (
     NeroDriverDefault,
     NeroDriverV111,
+    NeroDriverV112,
 )
 from .piper import (
     PiperDriverDefault,
@@ -30,6 +31,7 @@ __all__ = [
     # Robotic arm drivers
     'NeroDriverDefault',
     'NeroDriverV111',
+    'NeroDriverV112',
     'PiperDriverDefault',
     'PiperDriverV183',
     'PiperDriverV188',

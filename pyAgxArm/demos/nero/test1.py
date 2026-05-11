@@ -130,6 +130,7 @@ print(end_effector.__doc__)
 
 # -------------------------- Get data -------------------------
 
+
 while True:
     break
 
@@ -156,6 +157,10 @@ while True:
     # print(robot.get_joint_enable_status(1))
     # print(robot.get_joints_enable_status_list())
 
+    # print(robot.get_flange_vel_acc_limits())
+
+    # print(robot.get_crash_protection_rating())
+
     # print(end_effector.get_gripper_teaching_pendant_param())
 
     # for driver_state in [robot.get_driver_states(i) for i in range(1, robot.joint_nums + 1)]:
@@ -164,6 +169,14 @@ while True:
 
     # for motor_state in [robot.get_motor_states(i) for i in range(1, robot.joint_nums + 1)]:
     #     print(motor_state)
+    #     print()
+
+    # for j in [robot.get_joint_angle_vel_limits(i) for i in range(1, robot.joint_nums + 1)]:
+    #     print(j)
+    #     print()
+
+    # for j in [robot.get_joint_acc_limits(i) for i in range(1, robot.joint_nums + 1)]:
+    #     print(j)
     #     print()
 
     # CPV
@@ -249,6 +262,40 @@ while True:
 # robot.set_normal_mode()
 # robot.set_leader_mode()
 # robot.set_follower_mode()
+
+
+# ------------------------- Other --------------------------------
+
+# robot.disable(1)
+# robot.calibrate_joint(1)
+# robot.clear_joint_error(1)
+
+# -----------------------------------------------------------------------------------------------
+
+# print(robot.get_joint_angle_vel_limits(1))
+# print(robot.set_joint_angle_vel_limits(joint_index=1, max_joint_spd=3.14))
+# print(robot.get_joint_angle_vel_limits(1))
+
+
+# print(robot.get_joint_acc_limits(1))
+# print(robot.set_joint_acc_limits(max_joint_acc=5.0))
+# print(robot.get_joint_acc_limits(1))
+
+
+# robot.disable(1)
+# print(robot.get_crash_protection_rating())
+# print(robot.set_crash_protection_rating(joint_index=1, rating=1))
+# print(robot.get_crash_protection_rating())
+
+
+# print(end_effector.get_gripper_teaching_pendant_param())
+# print(end_effector.set_gripper_teaching_pendant_param(teaching_range_per=100, max_range_config=0.07, teaching_friction=1))
+# print(end_effector.get_gripper_teaching_pendant_param())
+
+
+# print(robot.get_flange_vel_acc_limits())
+# print(robot.set_flange_vel_acc_limits(1.0, 0.06, 1.5, 0.4))
+# print(robot.get_flange_vel_acc_limits())
 
 
 # -------------------------- TCP ----------------------------

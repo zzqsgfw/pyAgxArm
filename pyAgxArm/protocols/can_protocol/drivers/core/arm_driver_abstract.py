@@ -180,6 +180,26 @@ class ArmDriverAbstract(ArmDriverInterface):
     def create_comm(self, config: Optional[dict] = None, comm: str = "can"):
         return self._ctx.create_comm(config, comm)
 
+    def has_comm_error(self) -> bool:
+        """
+        Check whether the communication layer is currently in an error state.
+
+        Returns:
+            bool: `True` if a communication error has been recorded;
+                otherwise `False`.
+        """
+        return self._ctx.has_comm_error()
+    
+    def get_comm_error(self):
+        """
+        Get the most recent communication error information.
+
+        Returns:
+            Any: The error object stored in the communication context.
+                Usually returns `None` when there is no current error.
+        """
+        return self._ctx.get_comm_error()
+
     def connect(self, start_read_thread: bool = True) -> None:
         """
         Initialize and connect the underlying communication, optionally
@@ -189,6 +209,8 @@ class ArmDriverAbstract(ArmDriverInterface):
         will be ignored. Use `disconnect()` to stop threads and close comm
         when the driver instance is no longer needed.
         """
+        if self._ctx.has_comm_error():
+            self.disconnect()
         comm = self._ctx.get_comm()
         if comm is None:
             comm = self._ctx.init_comm()
@@ -214,8 +236,8 @@ class ArmDriverAbstract(ArmDriverInterface):
         and before creating a new instance.
         """
         with self._lock:
-            if not self._connected and (not self._ctx.get_comm() or self._ctx.get_comm().is_stopped()):
-                # Already disconnected or fully stopped
+            if not self._connected and self._ctx.get_comm() is None:
+                # Already disconnected and comm torn down
                 return
             self._connected = False
 

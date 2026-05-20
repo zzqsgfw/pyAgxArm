@@ -1,0 +1,4 @@
+[submodule "pyAgxArm/demos/piper_viz/piper_ros"]
+	path = pyAgxArm/demos/piper_viz/piper_ros
+	url = https://github.com/agilexrobotics/piper_ros.git
+	branch = noetic

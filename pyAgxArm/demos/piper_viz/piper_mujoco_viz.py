@@ -110,7 +110,7 @@ def _safe_disable(robot, settle_time=3.0):
         pass
 
 
-def run_with_hardware(model, data, interface, channel):
+def run_with_hardware(model, data, interface, channel, control="movep"):
     from pyAgxArm import create_agx_arm_config, AgxArmFactory, ArmModel, PiperFW
 
     cfg = create_agx_arm_config(
@@ -147,17 +147,21 @@ def run_with_hardware(model, data, interface, channel):
 
         # Init arm at low speed → move to Q_HOME with collision guard
         effector = _init_arm(robot, speed_pct=10)
-        print("  Moving to home pose (Q_HOME) at low speed...")
+        print("  Moving to home pose (Q_HOME)...")
         robot.set_motion_mode('j')
         robot.move_j(Q_HOME)
-        _wait_motion_done(robot, timeout=15.0)  # collision → exception → safe_disable
-
-        # Ramp up speed after safe arrival
-        print("  Ramping speed 10% → 30%...")
-        for pct in range(10, 31, 5):
-            robot.set_speed_percent(pct)
-            time.sleep(0.1)
-        robot.set_motion_mode('p')
+        robot.set_speed_percent(30)
+        # Set motion mode based on control method
+        use_ik = (control == "ik")
+        if use_ik:
+            from piper_ik import PiperIK
+            ik = PiperIK()
+            q_state, ik_optimizer = ik.create_solver_state(q_init=Q_HOME)
+            robot.set_motion_mode('js')
+            print(f"  Control: IK → move_js (streaming joint angles)")
+        else:
+            robot.set_motion_mode('p')
+            print(f"  Control: move_p (cartesian PTP)")
 
         # Read actual joint angles → update MuJoCo → snap target to link6
         ja = robot.get_joint_angles()
@@ -170,13 +174,13 @@ def run_with_hardware(model, data, interface, channel):
         mujoco.mj_forward(model, data)
         print(f"  link6 at: {_np.round(ee_pos, 3)}")
 
-        print("Drag target frame to command arm via move_p.")
+        print("Drag target frame to command arm.")
         print("Keys: O=open gripper, C=close gripper. ESC=quit.\n")
 
-        SEND_INTERVAL = 0.2
+        SEND_INTERVAL = 0.2 if not use_ik else 0.0  # IK mode: send every frame
         last_send_time = 0.0
         gripper_qpos_ids = get_gripper_qpos_ids(model)
-        gripper_cmd_width = 0.0  # commanded width (meters)
+        gripper_cmd_width = 0.0
         GRIPPER_STEP = 0.005
         GRIPPER_FORCE = 5.0
 
@@ -223,28 +227,38 @@ def run_with_hardware(model, data, interface, channel):
             # Read target frame world pose
             target_pos = data.qpos[target_qadr:target_qadr+3].copy()
             target_quat = data.qpos[target_qadr+3:target_qadr+7].copy()
-            R_target = _np.zeros(9)
-            mujoco.mju_quat2Mat(R_target, target_quat)
-            R_target = R_target.reshape(3, 3)
 
-            # Convert: target convention → link6 convention
-            R_link6 = R_target @ R_CORR_INV
-            roll, pitch, yaw = _mat_to_rpy(R_link6)
-
-            pose = [
-                float(target_pos[0]), float(target_pos[1]), float(target_pos[2]),
-                float(roll), float(pitch), float(yaw),
-            ]
-
-            # Send arm pose at throttled rate
             now = time.monotonic()
-            if now - last_send_time >= SEND_INTERVAL:
-                robot.move_p(pose)
-                last_send_time = now
-                print(f"\r[HW] move_p: xyz=[{pose[0]:.3f},{pose[1]:.3f},{pose[2]:.3f}] "
-                      f"rpy=[{_np.degrees(roll):.1f},{_np.degrees(pitch):.1f},{_np.degrees(yaw):.1f}]"
-                      f"  grip={real_width*1000:.0f}mm",
-                      end="", flush=True)
+            should_send = (SEND_INTERVAL == 0.0 or now - last_send_time >= SEND_INTERVAL)
+
+            if should_send:
+                if use_ik:
+                    # IK mode: solve locally → send joint angles via move_js
+                    q_sol = ik.solve_incremental(
+                        q_state, ik_optimizer, target_pos, target_quat,
+                    )
+                    robot.move_js(q_sol.tolist())
+                    last_send_time = now
+                    with _np.printoptions(precision=1, suppress=True):
+                        print(f"\r[IK] move_js: q={_np.degrees(q_sol).round(1)}",
+                              end="", flush=True)
+                else:
+                    # move_p mode: convert target → flange RPY
+                    R_target = _np.zeros(9)
+                    mujoco.mju_quat2Mat(R_target, target_quat)
+                    R_target = R_target.reshape(3, 3)
+                    R_link6 = R_target @ R_CORR_INV
+                    roll, pitch, yaw = _mat_to_rpy(R_link6)
+                    pose = [
+                        float(target_pos[0]), float(target_pos[1]), float(target_pos[2]),
+                        float(roll), float(pitch), float(yaw),
+                    ]
+                    robot.move_p(pose)
+                    last_send_time = now
+                    print(f"\r[HW] move_p: xyz=[{pose[0]:.3f},{pose[1]:.3f},{pose[2]:.3f}] "
+                          f"rpy=[{_np.degrees(roll):.1f},{_np.degrees(pitch):.1f},{_np.degrees(yaw):.1f}]"
+                          f"  grip={real_width*1000:.0f}mm",
+                          end="", flush=True)
 
             mujoco.mj_forward(model, data)
             viewer.render()
@@ -274,6 +288,10 @@ def main():
     )
     parser.add_argument("--interface", default="agx_cando", help="CAN interface")
     parser.add_argument("--channel", default="0", help="CAN channel")
+    parser.add_argument(
+        "--control", choices=["movep", "ik"], default="movep",
+        help="Hardware control: 'movep' (cartesian PTP) or 'ik' (local IK → move_js)",
+    )
     args = parser.parse_args()
 
     print("Loading Piper URDF into MuJoCo...")
@@ -281,7 +299,7 @@ def main():
     print(f"Model loaded: nq={model.nq}, nv={model.nv}")
 
     if args.mode == "hardware":
-        run_with_hardware(model, data, args.interface, args.channel)
+        run_with_hardware(model, data, args.interface, args.channel, control=args.control)
     else:
         run_offline_demo(model, data)
 

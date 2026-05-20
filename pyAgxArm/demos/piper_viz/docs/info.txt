@@ -1,0 +1,4 @@
+上位机：
+https://www.dropbox.com/scl/fi/5vn35i6obwml0lpnmn8k8/ArmRobotUA_V1.4.5.250918_release.exe?rlkey=2zwxgvjqean25zpmxni1hzgdn&e=2&st=3t4uudf7&dl=0
+实物命令：
+python pyAgxArm\demos\piper_viz\piper_mujoco_viz.py --mode hardware

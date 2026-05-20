@@ -22,8 +22,11 @@ ARM_JOINT_NAMES = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]
 TARGET_BODY_NAME = "target_frame"
 TARGET_JOINT_NAME = "target_freejoint"
 
-ARROW_INIT_POS = "0.25 0.0 0.25"
-ARROW_INIT_QUAT = "0.5 -0.5 -0.5 -0.5"
+ARROW_INIT_POS = "0.0601 0.0 0.2067"
+ARROW_INIT_QUAT = "1 0 0 0"
+
+# Joint angles where link6 @ R_CORR == I exactly (~2.5° from all-zeros)
+Q_HOME = [0.0, 0.0435, 0.0, 0.0, 0.0435, 0.0]
 
 AXIS_LENGTH = 0.08
 AXIS_RADIUS = 0.006
@@ -143,6 +146,9 @@ def load_model():
 
 # ── MuJoCo query helpers ─────────────────────────────────────────────
 
+GRIPPER_JOINT_NAMES = ["joint7", "joint8"]
+
+
 def get_joint_qpos_ids(model):
     ids = []
     for name in ARM_JOINT_NAMES:
@@ -159,3 +165,22 @@ def get_target_qpos_adr(model):
 
 def get_target_body_id(model):
     return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, TARGET_BODY_NAME)
+
+
+def get_gripper_qpos_ids(model):
+    """Get qpos addresses for gripper joints (joint7, joint8)."""
+    ids = []
+    for name in GRIPPER_JOINT_NAMES:
+        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, name)
+        if jid >= 0:
+            ids.append(model.jnt_qposadr[jid])
+    return ids
+
+
+def gripper_width_to_qpos(width):
+    """Convert gripper width (meters, 0=closed, 0.07=full open) to joint7/joint8 qpos.
+
+    Each finger moves half the total width. joint7 is positive, joint8 is negative.
+    """
+    half = min(max(width / 2, 0.0), 0.035)
+    return half, -half

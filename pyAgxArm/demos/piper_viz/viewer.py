@@ -54,6 +54,7 @@ class Viewer:
         self._last_y = 0.0
         self._dragging_target = False
         self._drag_axis = None  # 'x' | 'y' | 'z' | 'free' | None
+        self._key_callback = None  # external key handler
 
         self.cam = mujoco.MjvCamera()
         self.opt = mujoco.MjvOption()
@@ -180,6 +181,8 @@ class Viewer:
     def _on_key(self, window, key, scancode, action, mods):
         if action == glfw.PRESS and key == glfw.KEY_ESCAPE:
             self._running = False
+        if self._key_callback:
+            self._key_callback(key, action)
 
     # ── Target manipulation ──────────────────────────────────────
 
@@ -272,13 +275,24 @@ class Viewer:
         )
         self.scene.ngeom += 1
 
-    def _draw_ee_frame(self, ee_pos, ee_mat):
-        L, R = AXIS_LENGTH, AXIS_RADIUS
-        self._add_axis_geom(ee_pos, ee_mat[:, 0], L, R, [1, 0.3, 0.3, 0.7])
-        self._add_axis_geom(ee_pos, ee_mat[:, 1], L, R, [0.3, 1, 0.3, 0.7])
-        self._add_axis_geom(ee_pos, ee_mat[:, 2], L, R, [0.3, 0.3, 1, 0.7])
+    # 90° integer rotation: link6 frame → target convention (x=front, y=left, z=up)
+    # Derived from link6→gripper_base fixed transform (all 0/±1 entries).
+    # Ry(-90°): link6 frame → target convention (x=front, y=left, z=up)
+    _R_CORR = np.array([
+        [ 0,  0, -1],
+        [ 0,  1,  0],
+        [ 1,  0,  0],
+    ], dtype=np.float64)
 
-    def render(self, ee_body_name="gripper_base"):
+    def _draw_ee_frame(self, ee_pos, ee_mat):
+        # Apply R_CORR so EE viz matches target convention
+        mat = ee_mat @ self._R_CORR
+        L, R = AXIS_LENGTH, AXIS_RADIUS
+        self._add_axis_geom(ee_pos, mat[:, 0], L, R, [1, 0.3, 0.3, 0.7])
+        self._add_axis_geom(ee_pos, mat[:, 1], L, R, [0.3, 1, 0.3, 0.7])
+        self._add_axis_geom(ee_pos, mat[:, 2], L, R, [0.3, 0.3, 1, 0.7])
+
+    def render(self, ee_body_name="link6"):
         w, h = glfw.get_framebuffer_size(self.window)
         viewport = mujoco.MjrRect(0, 0, w, h)
         mujoco.mjv_updateScene(

@@ -136,12 +136,12 @@ class PiperFK(torch.nn.Module):
         self.fixed_transforms = fixed_transforms
         self.axes = axes
 
-        # link6 -> gripper_base fixed transform (empirical)
+        # Ry(-90°): link6 frame → target convention (x=front, y=left, z=up)
         self.ee_correction = torch.tensor([
-            [-1.0,  0.0, 0.0, 0.0    ],
-            [ 0.0,  0.0, 1.0, 0.0    ],
-            [ 0.0,  1.0, 0.0, 0.1358 ],
-            [ 0.0,  0.0, 0.0, 1.0    ],
+            [ 0.0,  0.0, -1.0, 0.0],
+            [ 0.0,  1.0,  0.0, 0.0],
+            [ 1.0,  0.0,  0.0, 0.0],
+            [ 0.0,  0.0,  0.0, 1.0],
         ], dtype=torch.float64)
 
     def forward(self, q: torch.Tensor):

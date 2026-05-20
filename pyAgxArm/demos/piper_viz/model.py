@@ -25,6 +25,13 @@ TARGET_JOINT_NAME = "target_freejoint"
 ARROW_INIT_POS = "0.0601 0.0 0.2067"
 ARROW_INIT_QUAT = "1 0 0 0"
 
+GRIPPER_SLIDER_BODY_NAME = "gripper_slider"
+GRIPPER_SLIDER_JOINT_NAME = "gripper_slider_joint"
+GRIPPER_SLIDER_RANGE = 0.07  # full range in meters = max gripper width
+# Offset from link6 origin, in link6 local frame
+# link6 X points along arm, so put slider along Y (sideways) for easy dragging
+GRIPPER_SLIDER_OFFSET = "0 0.06 0.05"  # side + up from EE, avoid overlap with Y axis
+
 # Joint angles where link6 @ R_CORR == I exactly (~2.5° from all-zeros)
 Q_HOME = [0.0, 0.0435, 0.0, 0.0, 0.0435, 0.0]
 
@@ -132,6 +139,45 @@ def load_model():
     _add_geom(frame, "frame_z_tip", "sphere",
               f"{AXIS_TIP_RADIUS} 0 0", f"0 0 {AXIS_LENGTH}", "0 0 1 1")
 
+    # Gripper slider: child of link6, slides along link6's local Y axis.
+    # Automatically follows EE in world space.
+    link6_body = wb.find(".//body[@name='link6']")
+    if link6_body is None:
+        raise RuntimeError("Cannot find link6 body in MJCF to attach gripper slider")
+
+    slider = ET.SubElement(link6_body, "body")
+    slider.set("name", GRIPPER_SLIDER_BODY_NAME)
+    slider.set("pos", GRIPPER_SLIDER_OFFSET)
+
+    s_inertial = ET.SubElement(slider, "inertial")
+    s_inertial.set("pos", "0 0 0")
+    s_inertial.set("mass", "0.001")
+    s_inertial.set("diaginertia", "1e-6 1e-6 1e-6")
+
+    s_joint = ET.SubElement(slider, "joint")
+    s_joint.set("name", GRIPPER_SLIDER_JOINT_NAME)
+    s_joint.set("type", "slide")
+    s_joint.set("axis", "0 1 0")  # slide along link6's local Y
+    s_joint.set("range", f"0 {GRIPPER_SLIDER_RANGE}")
+    s_joint.set("limited", "true")
+
+    # Rail (gray track along Y)
+    hr = GRIPPER_SLIDER_RANGE / 2
+    _add_geom(slider, "slider_rail", "capsule",
+              f"0.003 {hr}",
+              f"0 {hr} 0",
+              "0.5 0.5 0.5 0.5")
+
+    # Handle (yellow sphere, the draggable part)
+    _add_geom(slider, "slider_handle", "sphere",
+              "0.015 0 0", "0 0 0", "1 0.8 0 1")
+
+    # End marks: closed (red) / open (green)
+    _add_geom(slider, "slider_closed_mark", "sphere",
+              "0.006 0 0", f"0 -0.008 0", "1 0.3 0.3 1")
+    _add_geom(slider, "slider_open_mark", "sphere",
+              "0.006 0 0", f"0 {GRIPPER_SLIDER_RANGE + 0.008} 0", "0.3 1 0.3 1")
+
     with tempfile.NamedTemporaryFile(
         suffix=".xml", mode="wb", delete=False
     ) as f:
@@ -175,6 +221,16 @@ def get_gripper_qpos_ids(model):
         if jid >= 0:
             ids.append(model.jnt_qposadr[jid])
     return ids
+
+
+def get_gripper_slider_adr(model):
+    """Get qpos address for the gripper slider joint."""
+    jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, GRIPPER_SLIDER_JOINT_NAME)
+    return model.jnt_qposadr[jid]
+
+
+def get_gripper_slider_body_id(model):
+    return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, GRIPPER_SLIDER_BODY_NAME)
 
 
 def gripper_width_to_qpos(width):

@@ -15,8 +15,9 @@ import mujoco
 import glfw
 
 from model import (
-    AXIS_LENGTH, AXIS_RADIUS,
+    AXIS_LENGTH, AXIS_RADIUS, GRIPPER_SLIDER_RANGE,
     get_target_qpos_adr, get_target_body_id,
+    get_gripper_slider_adr, get_gripper_slider_body_id,
 )
 
 
@@ -46,6 +47,8 @@ class Viewer:
         self.data = data
         self.target_qadr = get_target_qpos_adr(model)
         self.target_bid = get_target_body_id(model)
+        self.slider_qadr = get_gripper_slider_adr(model)
+        self.slider_bid = get_gripper_slider_body_id(model)
 
         self._button_left = False
         self._button_right = False
@@ -53,8 +56,10 @@ class Viewer:
         self._last_x = 0.0
         self._last_y = 0.0
         self._dragging_target = False
+        self._dragging_slider = False
         self._drag_axis = None  # 'x' | 'y' | 'z' | 'free' | None
         self._key_callback = None  # external key handler
+        self._gripper_callback = None  # called with (width_m) on slider drag
 
         self.cam = mujoco.MjvCamera()
         self.opt = mujoco.MjvOption()
@@ -135,9 +140,11 @@ class Viewer:
         if action == glfw.PRESS and (button == glfw.MOUSE_BUTTON_LEFT or button == glfw.MOUSE_BUTTON_RIGHT):
             bodyid, axis = self._pick_body(x, y)
             self._dragging_target = (bodyid == self.target_bid)
+            self._dragging_slider = (bodyid == self.slider_bid)
             self._drag_axis = axis
         elif action == glfw.RELEASE:
             self._dragging_target = False
+            self._dragging_slider = False
             self._drag_axis = None
 
     def _on_mouse_move(self, window, x, y):
@@ -150,6 +157,10 @@ class Viewer:
             return
 
         win_w, win_h = glfw.get_window_size(self.window)
+
+        if self._dragging_slider:
+            self._drag_gripper_slider(dx, dy, win_w, win_h)
+            return
 
         if self._dragging_target:
             if self._button_left:
@@ -243,6 +254,42 @@ class Viewer:
         new_quat = quat_multiply(dq, cur_quat)
         new_quat /= np.linalg.norm(new_quat)
         self.data.qpos[qadr+3:qadr+7] = new_quat
+
+    # ── Gripper slider ────────────────────────────────────────────
+
+    def _drag_gripper_slider(self, dx, dy, w, h):
+        """Map mouse drag to gripper slider joint (slide along link6 local Y)."""
+        scale = self._pixel_to_world_scale(h)
+
+        # Get link6's local Y axis in world frame (the slide direction)
+        slider_bid = self.slider_bid
+        parent_bid = self.model.body_parentid[slider_bid]
+        parent_mat = self.data.xmat[parent_bid].reshape(3, 3)
+        slide_axis_world = parent_mat[:, 1]  # local Y in world
+
+        # Project pixel movement onto slide axis
+        cam = self.scene.camera[0]
+        right = np.cross(np.array(cam.forward), np.array(cam.up))
+        up = np.array(cam.up)
+        sx = np.dot(slide_axis_world, right)
+        sy = np.dot(slide_axis_world, -up)
+        slen = np.sqrt(sx**2 + sy**2)
+        if slen < 1e-6:
+            return
+        proj = (dx * sx + dy * sy) / slen
+
+        qadr = self.slider_qadr
+        new_val = np.clip(
+            self.data.qpos[qadr] + scale * proj,
+            0.0, GRIPPER_SLIDER_RANGE,
+        )
+        self.data.qpos[qadr] = new_val
+        if self._gripper_callback:
+            self._gripper_callback(float(new_val))
+
+    def get_gripper_slider_width(self):
+        """Read current slider value as gripper width in meters."""
+        return float(self.data.qpos[self.slider_qadr])
 
     # ── Rendering ────────────────────────────────────────────────
 

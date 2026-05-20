@@ -79,7 +79,10 @@ def _init_arm(robot, speed_pct=10):
     robot.reset()
     time.sleep(1.0)
 
-    print("  Disabling crash protection...")
+    print("  Restoring full range of motion...")
+    robot.set_joint_limits_enabled(False)
+    robot.set_joint_angle_vel_acc_limits_to_default()
+    robot.set_flange_vel_acc_limits_to_default()
     robot.set_crash_protection_rating(joint_index=255, rating=0)
 
     print(f"  Setting speed to {speed_pct}%...")
@@ -97,15 +100,25 @@ def _init_arm(robot, speed_pct=10):
     return effector
 
 
-def _safe_disable(robot, settle_time=3.0):
-    """Disable via electronic emergency stop (damping deceleration).
-
-    Keeps CAN alive during settle_time so the controller can execute damping.
-    """
+def _safe_disable(robot, effector=None, settle_time=5.0):
+    """Stop arm, disable motors (free-moving), disable gripper."""
     try:
+        # First: damped stop to decelerate safely
         robot.electronic_emergency_stop()
-        print(f"  Damping stop issued, waiting {settle_time}s for deceleration...")
+        print("  Damping stop issued...")
         time.sleep(settle_time)
+    except Exception:
+        pass
+    try:
+        # Then: fully disable all motors → free-moving (no holding torque)
+        robot.disable()
+        print("  Motors disabled (free-moving).")
+    except Exception:
+        pass
+    try:
+        if effector is not None:
+            effector.disable_gripper()
+            print("  Gripper disabled.")
     except Exception:
         pass
 
@@ -124,6 +137,7 @@ def run_with_hardware(model, data, interface, channel, control="movep"):
     print(f"Connected to Piper via {interface}:{channel}")
 
     viewer = None
+    effector = None
     try:
         qpos_ids = get_joint_qpos_ids(model)
         target_qadr = get_target_qpos_adr(model)
@@ -175,37 +189,32 @@ def run_with_hardware(model, data, interface, channel, control="movep"):
         print(f"  link6 at: {_np.round(ee_pos, 3)}")
 
         print("Drag target frame to command arm.")
-        print("Keys: O=open gripper, C=close gripper. ESC=quit.\n")
+        print("Drag yellow slider to control gripper. ESC=quit.\n")
 
         SEND_INTERVAL = 0.2 if not use_ik else 0.0  # IK mode: send every frame
         last_send_time = 0.0
         gripper_qpos_ids = get_gripper_qpos_ids(model)
-        gripper_cmd_width = 0.0
-        GRIPPER_STEP = 0.005
         GRIPPER_FORCE = 5.0
+        last_gripper_width = -1.0  # force first send
 
-        # Read initial gripper state
+        # Gripper slider drag callback → send to hardware
+        def _on_gripper_drag(width_m):
+            nonlocal last_gripper_width
+            # Only send if changed enough (0.5mm deadband)
+            if abs(width_m - last_gripper_width) > 0.0005:
+                effector.move_gripper_m(width_m, GRIPPER_FORCE)
+                last_gripper_width = width_m
+
+        # Init slider position from real gripper
+        from model import get_gripper_slider_adr
+        slider_qadr = get_gripper_slider_adr(model)
         gs = effector.get_gripper_status()
         if gs is not None and gs.msg.mode == "width":
-            gripper_cmd_width = gs.msg.value
-            print(f"  Gripper initial width: {gripper_cmd_width*1000:.1f}mm")
-
-        import glfw
-        def _on_key(key, action):
-            nonlocal gripper_cmd_width
-            if action != glfw.PRESS:
-                return
-            if key == glfw.KEY_O:
-                gripper_cmd_width = min(gripper_cmd_width + GRIPPER_STEP, 0.07)
-                robot.move_gripper_m(gripper_cmd_width, GRIPPER_FORCE)
-                print(f"\n[GRIP] open → {gripper_cmd_width*1000:.1f}mm")
-            elif key == glfw.KEY_C:
-                gripper_cmd_width = max(gripper_cmd_width - GRIPPER_STEP, 0.0)
-                robot.move_gripper_m(gripper_cmd_width, GRIPPER_FORCE)
-                print(f"\n[GRIP] close → {gripper_cmd_width*1000:.1f}mm")
+            data.qpos[slider_qadr] = gs.msg.value
+            print(f"  Gripper initial width: {gs.msg.value*1000:.1f}mm")
 
         viewer = Viewer(model, data)
-        viewer._key_callback = _on_key
+        viewer._gripper_callback = _on_gripper_drag
 
         while viewer.is_running():
             # Read joint angles from hardware → update MuJoCo
@@ -214,13 +223,9 @@ def run_with_hardware(model, data, interface, channel, control="movep"):
                 for i in range(num_joints):
                     data.qpos[qpos_ids[i]] = ja.msg[i]
 
-            # Read real gripper width from hardware → update MuJoCo
-            gs = effector.get_gripper_status()
-            if gs is not None and gs.msg.mode == "width":
-                real_width = gs.msg.value
-            else:
-                real_width = gripper_cmd_width
-            q7, q8 = gripper_width_to_qpos(real_width)
+            # Sync MuJoCo gripper fingers with slider position
+            slider_width = float(data.qpos[slider_qadr])
+            q7, q8 = gripper_width_to_qpos(slider_width)
             for i, qid in enumerate(gripper_qpos_ids):
                 data.qpos[qid] = [q7, q8][i]
 
@@ -257,7 +262,7 @@ def run_with_hardware(model, data, interface, channel, control="movep"):
                     last_send_time = now
                     print(f"\r[HW] move_p: xyz=[{pose[0]:.3f},{pose[1]:.3f},{pose[2]:.3f}] "
                           f"rpy=[{_np.degrees(roll):.1f},{_np.degrees(pitch):.1f},{_np.degrees(yaw):.1f}]"
-                          f"  grip={real_width*1000:.0f}mm",
+                          f"  grip={slider_width*1000:.0f}mm",
                           end="", flush=True)
 
             mujoco.mj_forward(model, data)
@@ -271,7 +276,7 @@ def run_with_hardware(model, data, interface, channel, control="movep"):
     finally:
         # ALWAYS safe-disable, no matter how we exit
         print("Safe shutdown...")
-        _safe_disable(robot)
+        _safe_disable(robot, effector)
         if viewer is not None:
             viewer.close()
         robot.disconnect()

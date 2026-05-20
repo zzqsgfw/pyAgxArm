@@ -20,5 +20,5 @@ incremental:
   pos_weight: 50.0
   rot_weight: 5.0
   smooth_weight: 1.0
-  limit_weight: 0.0
+  limit_weight: 10.0
   momentum_reset_threshold: 0.05  # meters, reset Adam state on jumps > this

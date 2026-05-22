@@ -12,14 +12,23 @@ robot = AgxArmFactory.create_arm(cfg)
 robot.connect()
 print("Connected.")
 
+robot.reset()
+time.sleep(1.0)
+
 robot.enable()
 time.sleep(0.5)
 
 print("Calibrating all joints...")
 result = robot.calibrate_joint(255)
 print(f"Result: {result}")
-
 time.sleep(1.0)
+
+# Reset limits after calibration
+print("Resetting limits...")
+robot.set_joint_limits_enabled(False)
+robot.set_joint_angle_vel_acc_limits_to_default()
+robot.set_flange_vel_acc_limits_to_default()
+robot.set_crash_protection_rating(joint_index=255, rating=0)
 
 ja = robot.get_joint_angles()
 if ja:

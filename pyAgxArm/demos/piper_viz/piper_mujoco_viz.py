@@ -77,7 +77,11 @@ def _init_arm(robot, speed_pct=10):
     """Reset, enable at low speed, with collision detection active."""
     print("  Resetting...")
     robot.reset()
-    time.sleep(0.0)
+    time.sleep(1.0)
+
+    print("  Clearing joint errors...")
+    robot.clear_joint_error(255)
+    time.sleep(0.5)
 
     print("  Restoring full range of motion...")
     robot.set_joint_limits_enabled(False)
@@ -90,7 +94,7 @@ def _init_arm(robot, speed_pct=10):
 
     print("  Enabling...")
     robot.enable()
-    time.sleep(0.0)
+    time.sleep(1.0)
 
     print("  Initializing gripper...")
     effector = robot.init_effector(robot.OPTIONS.EFFECTOR.AGX_GRIPPER)

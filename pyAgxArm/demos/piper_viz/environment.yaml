@@ -1,0 +1,17 @@
+name: pyAgxArm
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - pyAgxArm
+    - mujoco>=3.8
+    - glfw
+    - numpy
+    - scipy
+    - pyyaml
+    - torch --index-url https://download.pytorch.org/whl/cpu
+    - trimesh
+    - yourdfpy
+    - "pyglet<2"
